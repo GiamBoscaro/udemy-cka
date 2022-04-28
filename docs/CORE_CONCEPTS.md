@@ -93,7 +93,7 @@ Per configurare un cluster di `etcd` è necessario impostare i seguenti parametr
 È la componente principale di Kubernetes. Si occupa di autenticare e validare le richieste, scaricare e aggiornare i dati nell'ETCD (ed è l'unico servizio a poterlo fare). Può comandare i `kubelet` e viene utilizzato da altri servizi per conoscere lo stato del cluster e agire di conseguenza, sempre richiedendo l'azione all'API server.
 Ogni comando inviato via `kubectl` passa dal Kube-API Server. Le sue API possono anche essere richiamate con una classica chiamata GET e POST via API REST.
 
-* ### Installazione da zero
+* ### Installazione di Kube-API Server da zero
 
 Installazione:
 
@@ -115,7 +115,7 @@ La configurazione attuale dell'API Server è visibile col comando:
 cat /etc/systemd/system/kube-apiserver.service
 ```
 
-* ### Installazione con kubeadm
+* ### Installazione di Kube-API Server con kubeadm
 
 `kubeadm` istanzia un Pod che esegue `kube-apiserver` nel namespace `kube-system`.
 Il Pod si chiamerà `kube-apiserver-master` e si può vedere chiamando:
@@ -130,7 +130,7 @@ Le specifiche del Pod che contiene l'API Server sono presenti in `/etc/kubernete
 
 Gestisce vari controller, che monitorano lo stato dei componenti del sistema e cercano di mantenere sempre il sistema allo stato desiderato. I controller ottengono lo stato dei componenti ed eseguono le azioni passando sempre attraverso l'API Server.
 
-* ### Installazione da zero
+* ### Installazione di Kube Controller Manager da zero
 
 Installazione:
 
@@ -157,7 +157,7 @@ La configurazione attuale del Kube Controller Manager è visibile col comando:
 cat /etc/systemd/system/kube-controller-manager.service
 ```
 
-* ### Installazione con kubeadm
+* ### Installazione di Kube Controller Manager con kubeadm
 
 `kubeadm` istanzia un Pod che esegue `kube-controller-manager` nel namespace `kube-system`.
 Il Pod si chiamerà `kube-controller-manager-master` e si può vedere chiamando:
@@ -173,7 +173,7 @@ Le specifiche del Pod che contiene il Controller Manager sono presenti in `/etc/
 Decide a che Nodo assegnare i Pod, in funzione delle risorse richieste, risorse disponibili ecc. con l'aiuto di una funzione che permette di scegliere il Nodo compatibile migliore.
 È possibile sviluppare ed utilizzare uno Scheduler personalizzato.
 
-* ### Installazione da zero
+* ### Installazione di Kube Scheduler da zero
 
 Installazione:
 
@@ -194,7 +194,7 @@ La configurazione attuale del Kube Scheduler è visibile col comando:
 cat /etc/systemd/system/kube-scheduler.service
 ```
 
-* ### Installazione con kubeadm
+* ### Installazione di Kube Scheduler con kubeadm
 
 `kubeadm` istanzia un Pod che esegue `kube-scheduler` nel namespace `kube-system`.
 Il Pod si chiamerà `kube-scheduler-master` e si può vedere chiamando:
@@ -209,7 +209,7 @@ Le specifiche del Pod che contiene lo Scheduler sono presenti in `/etc/kubernete
 
 Gestisce le operazioni nei Nodi, come la registrazione dei Nodi nel Cluster, il deployment dei Pods all'interno del Nodo, l'invio dei report dello stato all'API Server.
 
-* ### Installazione da zero
+* ### Installazione di Kubelet da zero
 
 Installazione:
 
@@ -223,7 +223,7 @@ La configurazione attuale del Kube Scheduler è visibile col comando:
 cat /etc/systemd/system/kubelet.service
 ```
 
-* ### Installazione con kubeadm
+* ### Installazione di Kubelet con kubeadm
 
 `kubeadm` non installa `kubelet` nei nodi. È necessario sempre installare manualmente `kubelet`.
 
@@ -231,7 +231,7 @@ cat /etc/systemd/system/kubelet.service
 
 Permette ai tutti i Pod di comunicare tra di loro. Ogni volta che un servizio viene creato, i Kube Proxy aggiornano le loro IP Table interne in modo da mettere in comunicazione i nodi definiti nel servizio, e di conseguenza i Pod contenuti nei nodi.
 
-* ### Installazione da zero
+* ### Installazione di Kube Proxy da zero
 
 Installazione:
 
@@ -245,7 +245,7 @@ La configurazione attuale del Kube Scheduler è visibile col comando:
 cat /etc/systemd/system/kube-proxy.service
 ```
 
-* ### Installazione con kubeadm
+* ### Installazione di Kube Proxy con kubeadm
 
 `kubeadm` istanzia un Pod per ogni nodo che esegue `kube-proxy` nel namespace `kube-system`.
 Il Pod si chiamerà `kube-proxy-<id>` e si può vedere chiamando:
@@ -254,9 +254,250 @@ Il Pod si chiamerà `kube-proxy-<id>` e si può vedere chiamando:
 kubectl get pods -n kube-system
 ```
 
+## Pods
+
+Il Pod è il più piccolo oggetto presente in Kubernetes, e rappresenta una singola istanza dell'applicazione. Viene eseguito nei nodi del cluster, e può contenere uno o più container.
+Kubernetes può istanziare vari Pod nello stesso nodo o in nodi diversi, in funzione del carico di lavoro e dello stato di funzionamento dei vari Pod.
+
+Per vedere la lista dei Pod presenti nel cluster:
+
+```bash
+kubectl get pods
+```
+
+Per avere dettagli e informazioni varie sul Pod appena creato:
+
+```bash
+kubectl describe pod <nome_pod> # in questo caso sarebbe myapp-pod
+```
+
+### Deploy di un Pod da CLI
+
+Un Pod può essere creato e deployato dal terminale eseguendo:
+
+```bash
+kubectl run <nome_pod> --image <path/to/docker_image>
+```
+
+e per cancellarlo:
+
+```bash
+kubectl delete <nome_pod>
+```
+
+### Deploy di un Pod da specifica YAML
+
+La configurazione di base per il deploy di un Pod utilizzando uno *yaml* è:
+
+```yaml
+# pod-definition.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+    name: myapp-pod
+    labels:
+        # qualsiasi key e value
+        app: myapp
+        type: front-end
+        # ...
+spec:
+    containers:
+      - name: nginx-container
+        image: nginx # se non preso da Docker Hub, specifica l'url del registro
+```
+
+Per eseguire il deploy:
+
+```bash
+kubectl apply -f pod-definition.yaml
+# oppure
+kubectl create -f pod-definition.yaml # create va in errore se il Pod esiste già
+```
+
+## Replica Sets
+
+Il Replication Controller controlla che il numero desiderato di Pod sia in esecuzione nel cluster. Si occupa di sostituire i Pod in errore e crearne di nuovi per mantenere lo stato del cluster desiderato.
+Il Replication Controller è in realtà la vecchia implementazione del controller, mentre il nuovo si chiama Replica Set.
+
+Per vedere i Replication Controller in esecuzione:
+
+```bash
+kubectl get replicationcontroller
+```
+
+mentre per i ReplicaSet:
+
+```bash
+kubectl get replicaset
+```
+
+### Deploy di un Replication Controller da specifica YAML
+
+La configurazione di base per il deploy di un Replication Controller utilizzando uno *yaml* è:
+
+```yaml
+# rc-definition.yaml
+apiVersion: v1
+kind: ReplicationController
+metadata:
+    name: myapp-rc
+    labels:
+        app: myapp
+        type: front-end
+spec:
+    replicas: 3
+    template:
+    ### POD DEFINITION ###
+        metadata:
+        name: myapp-pod
+        labels:
+            app: myapp
+            type: front-end
+        spec:
+            containers:
+            - name: nginx-container
+                image: nginx
+    ######################
+```
+
+Per eseguire il deploy:
+
+```bash
+kubectl apply -f rc-definition.yaml
+```
+
+### Deploy di un ReplicaSet da specifica YAML
+
+La configurazione di base per il deploy di un ReplicaSet utilizzando uno *yaml* è:
+
+```yaml
+# replicaset-definition.yaml
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+    name: myapp-replicaset
+    labels:
+        app: myapp
+        type: front-end
+spec:
+    replicas: 3
+    selector: 
+        matchLabels:
+            type: front-end
+    template:
+    ### POD DEFINITION ###
+        metadata:
+        name: myapp-pod
+        labels:
+            app: myapp
+            type: front-end
+        spec:
+            containers:
+            - name: nginx-container
+              image: nginx
+    ######################
+```
+
+La differenza principale tra ReplicaSet e Replication Controller è la presenza dei `selector`. Il tag `selector` permette di selezionare quali Pod il ReplicaSet deve gestire, oltre a quelli definiti nello *yaml*. È utile per controllare Pod che sono già in esecuzione nel cluster.
+In realtà anche Replication Controller permette di inserire la tag `selector`, che però è facoltativa e assume di default i valori presenti sul tag `labels`. Inoltre nel Replication Controller non è possibile usare `matchExpression`.
+
+Per eseguire il deploy:
+
+```bash
+kubectl apply -f replicaset-definition.yaml
+```
+
+### Scaling di un ReplicaSet
+
+Ci sono due modi per aumentare (o diminuire) le repliche di un Pod. È possibile modificare il file *yaml* e deployarlo:
+
+```bash
+kubectl replace -f replicaset-definition.yaml
+# oppure
+kubectl apply -f replicaset-definition.yaml
+```
+
+In alternativa è possibile usare il comando `scale`:
+
+```bash
+kubectl scale --replicas=6 -f replicaset-definition.yaml
+```
+
+che andrà anche ad aggiornare automaticamente il file.
+Se non si conosce la posizione del file *yaml*, è possibile scalare anche con:
+
+```bash
+kubectl scale --replicas=6 replicaset <nome_replicaset>
+```
+
+*Nota*: questo comando non aggiorna il file *yaml* ma esegue direttamente lo scaling in runtime.
+
+## Deployments
+
+Un Deployment permette di eseguire varie repliche di un Pod, come un ReplicaSet. Ha però anche molte funzionalità in più, come ad esempio la possibilità di aggiornare facilmente le immagini dei container facendo dei *rollout* e dei *rollback* in caso di errore. Il Deployment è l'oggetto principale per eseguire Pods di applicazioni __Stateless__.
+Un Deployment crea automaticamente il suo ReplicaSet, e il ReplicaSet crea poi i Pod. Per vedere tutti gli oggetti creati da Kubernetes:
+
+```bash
+kubectl get all
+```
+
+mentre per vedere solo i deployment:
+
+```bash
+kubectl get deployments
+```
+
+### Deploy di un Deployment da specifica YAML
+
+La configurazione di un Deployment è:
+
+```yaml
+# deployment-definition.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: myapp-deployment
+    labels:
+        app: myapp
+        type: front-end
+spec:
+    replicas: 3
+    selector: 
+        matchLabels:
+            type: front-end
+    template:
+    ### POD DEFINITION ###
+        metadata:
+        name: myapp-pod
+        labels:
+            app: myapp
+            type: front-end
+        spec:
+            containers:
+            - name: nginx-container
+              image: nginx
+    ######################
+```
+
+Come si nota è molto simile al ReplicaSet.
+Per eseguire il deploy:
+
+```bash
+kubectl apply -f deployment-definition.yaml
+```
+
+### Generare un file YAML con Dry Run
+
+Potrebbe essere complicato creare da zero un file *yaml* da terminale. È possibile però auto generare le specifiche *yaml* eseguendo una `dry-run` con `kubectl create`, ad esempio:
+
+```bash
+kubectl create deployment --image=nginx nginx --dry-run=client -o yaml > nginx-deployment.yaml
+```
+
 ## References
 
 1. [CKA Course - Core Concepts](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/02-Core-Concepts)
 2. [Kubernetes Documentation - Getting Started](https://kubernetes.io/docs/setup/)
 3. [Kubernetes Documentation - Kubeadm Install](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/)
-4. [etcd.io](https://etcd.io/docs/)
+4. [kubectl Usage Conventions](https://kubernetes.io/docs/reference/kubectl/conventions/)
+5. [etcd.io](https://etcd.io/docs/)
