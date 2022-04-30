@@ -494,6 +494,68 @@ Potrebbe essere complicato creare da zero un file *yaml* da terminale. È possib
 kubectl create deployment --image=nginx nginx --dry-run=client -o yaml > nginx-deployment.yaml
 ```
 
+## Services
+
+Permette di connettere i Pod tra di loro e con l'esterno.
+
+Per vedere i servizi in esecuzione nel cluster:
+
+```bash
+kubectl get services
+```
+
+### NodePort
+
+Mappa una porta del Nodo ad una porta del Pod. In questo modo le richieste inviate dall'esterno all'IP e porta del nodo vengonono indirizzate al servizio in esecuzione nel Pod. Il servizio viene lanciato all'interno del cluster come un server virtuale con un suo IP interno.
+
+Le porte da configurare nel servizio sono tre:
+
+* TargetPort: la porta del Pod a cui reindirizzare le richieste.
+* Port: la porta del servizio da cui provengono le richieste inviate al Pod.
+* NodePort: La porta del Nodo che ricevere le richieste dall'esterno. La porta del Nodo deve essere compresa tra 30000 e 32767.
+
+![Porte di un Servizio](../assets/section-2/service_ports.PNG)
+
+La configurazione di un Service NodePort:
+
+```yaml
+# service-definition.yaml
+apiVersion: v1
+kind: Service
+metadata:
+    name: myapp-service
+spec:
+    type: NodePort
+    ports:
+      - targetPort: 80 # facoltativo, di default è uguale a port
+        port: 80
+        nodePort: 30008 # facoltativo, di defeault viene assegnata una porta casuale nel range 30000 e 32767
+    selector:
+        app: myapp
+        type: front-end
+```
+
+I Pod a cui il servizio invia le richieste viene selezionato tramite i `selector`. Verranno selezionati solo i Pod che hanno __tutti__ i label corrispondenti (sia chiave che valore).
+Per creare il servizio:
+
+```bash
+kubectl apply -f service-definition.yaml
+```
+
+Ora è possibile ricevere una risposta dal servizio all'interno del nodo chiamando l'indirizzo pubblico del nodo alla porta 30008. Se sono presenti più Pod corrispondenti ai `labels` scelti, il servizio li prenderà in carico tutti automaticamente inviando ogni volta la richiesta casualmente ad uno di essi (come un Load Balancer).
+
+Se i Pod corrispondenti sono presenti in nodi diversi, viene creato automaticamente un servizio che copre tutti i nodi necessari, e i Pod diventano raggiungibili facendo una richiesta a qualsiasi degli IP esterni dei nodi selezionati, alla porta NodePort impostata.
+
+![Servizio in diversi Nodi](../assets/section-2/multi_node_service.PNG)
+
+### ClusterIP
+
+Il servizio crea un indirizzo virtuale visibile solo all'interno del Cluster. Questo permette la connessione tra Pod all'interno del cluster, senza esporli all'esterno.
+
+### LoadBalancer
+
+Distribuisce il traffico proveniente dall'esterno ai vari Pod.
+
 ## References
 
 1. [CKA Course - Core Concepts](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/02-Core-Concepts)
