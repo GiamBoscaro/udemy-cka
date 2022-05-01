@@ -487,6 +487,12 @@ Per eseguire il deploy:
 kubectl apply -f deployment-definition.yaml
 ```
 
+È possibile aggiornare l'immagine di un deployment in esecuzione direttamente da cli usando:
+
+```bash
+kubectl set image deployment <nome_deployment> nginx=nginx:1.18
+```
+
 ### Generare un file YAML con Dry Run
 
 Potrebbe essere complicato creare da zero un file *yaml* da terminale. È possibile però auto generare le specifiche *yaml* eseguendo una `dry-run` con `kubectl create`, ad esempio:
@@ -509,6 +515,12 @@ I servizi possono essere contattati sia per nome che per IP. Una volta definite 
 
 ```bash
 kubectl apply -f service-definition.yaml
+```
+
+si può anche creare un servizio andando ad esporre un Deployment col comando:
+
+```bash
+kubect expose deployment <nome_deployment> --port <porta> --type LoadBalancer --name <nome_servizio>
 ```
 
 ### NodePort
@@ -596,6 +608,152 @@ spec:
         app: myapp
         type: front-end
 ```
+
+## Namespaces
+
+I namespace permettono di suddividere gli oggetti di kubernetes in insiemi. All'interno del namespace gli oggetti vengono chiamati col loro nome, mentre per contattare dall'esterno un oggetto di un namespace si utilizza la notazione *name.namespace* (oppure la notazione estesa *name.namespace.object_type.cluster_domain*, ad esempio: `db-service.dev.svc.cluster.local`).
+Ogni namespace può limitare le risorse utilizzate dagli oggetti del kluster e può assegnare diversi permessi.
+
+Di default, Kubernetes assegna tutti gli oggetti al namespace *default*. Inoltre, allo startup, crea altri due namespace: *kube-system* (che contiene i servizi interni) e *kube-public* (dedicato agli oggetti da esporre a tutti gli utenti).
+
+Tutti i comandi di `kubectl` mostrano gli oggetti del *default* namespace. Per specificare un namespace diverso, utilizzare l'opzione `--namespace` o `-n`:
+
+```bash
+kubectl get pods --namespace <nome_namespace>
+```
+
+Per vedere invece gli oggetti di  tutti i namespace:
+
+```bash
+kubectl get pods --all-namespaces
+```
+
+### Deploy di un Namespace da CLI
+
+Per creare un namespace direttamente da cli:
+
+```bash
+kubectl create namespace <nome_namespace>
+```
+
+### Deploy di un Namespace da specifica YAML
+
+Per creare un namespace da una specifica *yaml*:
+
+```yaml
+# namespace-dev.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+```
+
+e deployarlo nel cluster con:
+
+```bash
+kubectl create -f namespace-dev.yaml
+```
+
+### Creare oggetti in un Namespace specifico
+
+Per creare un oggetto in un preciso namespace, utilizzare:
+
+```bash
+kubectl create -f spec.yaml --namespace <nome_namespace>
+```
+
+Se si vuole invece specificare nel file *yaml* a quale namespace appartiene l'oggetto, aggiungere il namespace tra i `metadata`:
+
+```yaml
+# pod-definition.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+    name: myapp-pod
+    namespace: dev
+    labels:
+        app: myapp
+        type: front-end
+spec:
+    containers:
+      - name: nginx-container
+        image: nginx
+```
+
+### Cambiare il Namespace di default
+
+Se si vuole cambiare il namespace che viene utilizzato di default da Kubernetes:
+
+```bash
+kubectl config set-context $(kubectl config current-context) --namespace=<nome_namespace>
+```
+
+in questo modo tutti i comandi inviati saranno riferiti al namespace selezionato. Il context si riferisce al cluster a cui siamo collegati.
+
+### Limitare le risorse di un Namespace con ResourceQuota
+
+Per limitare le risorse di un namespace, utilizzare l'oggetto ResourceQuota:
+
+```yaml
+# resource-quota-dev.yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+    name: compute-quota
+    namespace: dev
+spec:
+    hard:
+        pods: "10" # numero massimo di pod in esecuzione nel namespace
+        requests.cpu: "4" # massime richieste di cpu tra tutti i pod nel namespace
+        requests.memory: 5Gi # massima richiesta di memoria tra tutti i pod del namespace 
+        limits.cpu: "10" # cpu massime utilizzate tra tutti i pod del namespace
+        limits.memory: 10Gi  # memoria massima utilizzata tra tutti i pod del namespace
+```
+
+e deployarlo con:
+
+```bash
+kubectl apply -f compute-quota.yaml
+```
+
+`requests` dovrebbe essere impostato sulle risorse minime che il Pod necessita per funzionare correttamente. Se queste risorse vengono impostate troppo alte, è possibile che non si riesca a trovare un nodo su cui deployare il Pod che garantisca le risorse richieste. `limits` rappresenta le risorse massime che possono essere utilizzate. `limits` deve sempre essere maggiore di `requests`.
+
+## Imperative vs Declarative
+
+### Imperative
+
+Utilizzando il metodo imperativo, vengono usati comandi ben specifici per creare, aggiornare e distruggere gli oggetti:
+
+```bash
+# CREATE
+kubectl run # crea ed esegue un pod
+kubectl create # crea un oggetto tramite opzioni o leggendo un file yaml
+kubectl expose # crea un servizio per esporre un oggetto
+# UPDATE
+kubectl edit # per modificare le specifiche di un oggetto in esecuzione. Le modifiche NON vengono riportate nel file yaml originale salvato localmente
+kubectl replace # rimpiazza la configurazione di un oggetto in esecuzione con una nuova definizione yaml. In questo caso le modifiche sono sincronizzate tra file locale e memoria di kubernetes
+kubectl scale # modifica il numero di repliche di un oggetto
+kubectl set
+```
+
+Con questo metodo, i comandi sono digitati nella console e solo l'operatore che effettua l'operazione conosce la sequenza di comandi eseguita o il modo in cui certi oggetti in esecuzione sono stati creati.
+Inoltre, creare una configurazione complessa con comandi imperativi richiede di scrivere comandi molto lunghi e complessi.
+
+Per facilitre le operazioni, è possibile utilizzare i file di configurazione *yaml* e creare, aggiornare e distruggere gli oggetti indicati nei file.
+
+### Declarative
+
+I comandi esposti precendentemente possono fallire se le condizioni non sono corrette (es: cerco di creare un oggetto che esiste già).
+Il comando `kubectl apply` è un comando intelligente che in funzione dello stato del cluster capisce se deve creare, aggiornare o rimuovere gli oggetti:
+
+```bash
+kubectl apply -f <file_name>
+```
+
+Al posto di un singolo file è anche possibile puntare ad un intera cartella per eseguire tutti i file *yaml* presenti in essa.
+
+Per applicare correttamente i comandi necessari, Kubernetes confronta la nuova configurazione con quella in esecuzione, ed inoltre con un JSON rappresentante l'ultima configurazione applicata (utilizzata sopratutto per capire se qualche campo è stato cancellato dal file locale).
+L'ultima configurazione applicata è salvata direttamente sulla definizione dell'oggetto nella memoria del cluster, su un `annotations`, e viene creata solo utilizzando il comando `kubectl apply`.
 
 ## References
 
