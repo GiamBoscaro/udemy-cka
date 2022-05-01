@@ -720,6 +720,8 @@ kubectl apply -f compute-quota.yaml
 
 ## Imperative vs Declarative
 
+Sono i due diversi approcci per gestire il cluster e inviare comandi.
+
 ### Imperative
 
 Utilizzando il metodo imperativo, vengono usati comandi ben specifici per creare, aggiornare e distruggere gli oggetti:
