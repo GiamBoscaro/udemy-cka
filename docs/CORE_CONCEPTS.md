@@ -258,6 +258,7 @@ kubectl get pods -n kube-system
 
 Il Pod è il più piccolo oggetto presente in Kubernetes, e rappresenta una singola istanza dell'applicazione. Viene eseguito nei nodi del cluster, e può contenere uno o più container.
 Kubernetes può istanziare vari Pod nello stesso nodo o in nodi diversi, in funzione del carico di lavoro e dello stato di funzionamento dei vari Pod.
+I Pod vengono distrutti e creati ad ogni evenienza, cambiando il loro indirizzo IP ogni volta. I Pod sono quindi effimeri.
 
 Per vedere la lista dei Pod presenti nel cluster:
 
@@ -504,6 +505,12 @@ Per vedere i servizi in esecuzione nel cluster:
 kubectl get services
 ```
 
+I servizi possono essere contattati sia per nome che per IP. Una volta definite le specifiche *yaml*, creare il servizio con:
+
+```bash
+kubectl apply -f service-definition.yaml
+```
+
 ### NodePort
 
 Mappa una porta del Nodo ad una porta del Pod. In questo modo le richieste inviate dall'esterno all'IP e porta del nodo vengonono indirizzate al servizio in esecuzione nel Pod. Il servizio viene lanciato all'interno del cluster come un server virtuale con un suo IP interno.
@@ -516,7 +523,7 @@ Le porte da configurare nel servizio sono tre:
 
 ![Porte di un Servizio](../assets/section-2/service_ports.PNG)
 
-La configurazione di un Service NodePort:
+La configurazione di un Service NodePort è:
 
 ```yaml
 # service-definition.yaml
@@ -536,25 +543,59 @@ spec:
 ```
 
 I Pod a cui il servizio invia le richieste viene selezionato tramite i `selector`. Verranno selezionati solo i Pod che hanno __tutti__ i label corrispondenti (sia chiave che valore).
-Per creare il servizio:
 
-```bash
-kubectl apply -f service-definition.yaml
-```
-
-Ora è possibile ricevere una risposta dal servizio all'interno del nodo chiamando l'indirizzo pubblico del nodo alla porta 30008. Se sono presenti più Pod corrispondenti ai `labels` scelti, il servizio li prenderà in carico tutti automaticamente inviando ogni volta la richiesta casualmente ad uno di essi (come un Load Balancer).
-
-Se i Pod corrispondenti sono presenti in nodi diversi, viene creato automaticamente un servizio che copre tutti i nodi necessari, e i Pod diventano raggiungibili facendo una richiesta a qualsiasi degli IP esterni dei nodi selezionati, alla porta NodePort impostata.
+Ora è possibile ricevere una risposta dal servizio all'interno del nodo chiamando l'indirizzo pubblico del nodo alla porta 30008. Se sono presenti più Pod corrispondenti ai `labels` scelti, la richiesta verrà inviata a uno dei Pod del nodo in modo casuale.
+Se i Pod corrispondenti sono presenti in nodi diversi, verrà creato automaticamente un servizio che copre tutti i nodi necessari, e i Pod diventano raggiungibili facendo una richiesta a qualsiasi degli IP esterni dei nodi selezionati, alla porta NodePort impostata.
 
 ![Servizio in diversi Nodi](../assets/section-2/multi_node_service.PNG)
 
 ### ClusterIP
 
-Il servizio crea un indirizzo virtuale visibile solo all'interno del Cluster. Questo permette la connessione tra Pod all'interno del cluster, senza esporli all'esterno.
+Il servizio crea un indirizzo virtuale visibile solo all'interno del Cluster. Questo permette la connessione tra Pod all'interno del cluster, senza esporli all'esterno. I vari Pod inviano richieste al servizio tramite il suo nome, e il servizio si occupa di inoltrare la richiesta a uno dei Pod a cui la richiesta è indirizzata, casualmente.
+
+La configurazione di base di un Service ClusterIP è:
+
+```yaml
+# service-definition.yaml
+apiVersion: v1
+kind: Service
+metadata:
+    name: back-end
+spec:
+    type: ClusterIP
+    ports:
+      - targetPort: 80 # porta alla quale il backend è esposto, cioè la porta dei Pod a cui vengono inviate le richieste.
+        port: 80 # porta alla quale il servizio è esposto, cioè quella a cui va contattato il servizio.
+    selector:
+        app: myapp
+        type: back-end
+```
+
+ClusterIP è il servizio di default quando `type` non è definito.
 
 ### LoadBalancer
 
-Distribuisce il traffico proveniente dall'esterno ai vari Pod.
+Funziona come NodePort, ma distribuisce il traffico proveniente dall'esterno ai vari nodi quando il servizio copre più nodi. Il servizio LoadBalancer è utilizzabile solamente quando il cluster risiede in un Cloud Provider compatibile, in quando in servizio LoadBalancer si integra col cloud provider per configurare automaticamente un Load Balancer.
+Se il cluster viene creato da zero su una macchina senza alcun supporto da un provider, LoadBalancer si comporterà esattamente come NodePort e configurare manualmente un Load Balancer (come *haproxy* o *nginx*) che distribuisca correttamente le richieste ai vari nodi.
+
+La configurazione di un servizio LoadBalancer è come quella di NodePort:
+
+```yaml
+# service-definition.yaml
+apiVersion: v1
+kind: Service
+metadata:
+    name: myapp-service
+spec:
+    type: LoadBalancer
+    ports:
+      - targetPort: 80 # facoltativo, di default è uguale a port
+        port: 80
+        nodePort: 30008 # facoltativo, di defeault viene assegnata una porta casuale nel range 30000 e 32767
+    selector:
+        app: myapp
+        type: front-end
+```
 
 ## References
 
