@@ -63,6 +63,154 @@ Un Service o ReplicaSet utilizza i campi `selector` e `matchLabels` per selezion
 
 Le `annotations` sono altri metadati che vengono usati solo a scopo informativo per inserire alcune informazioni nella definizione dell'oggetto. Molte volte vengono create da Kubernetes durante l'esecuzione.
 
+## Taint e Tolerations
+
+Sono delle regole che permettono di limitare il deploy di Pod in alcuni nodi. Ad un certo nodo viene applicata una `taint` (un "repellente"). Di default tutti i Pod sono incapacitati dal repellente, per cui nessun Pod verrà deployato nel nodo dallo Scheduler. Alcuni Pod possono però essere abilitati ad essere deployati sul nodo aggiungendo ai Pod voluti una `toleration`, cioè il Pod diventa tollerante al repellente.
+
+*Nota*: questo sistema __NON__ assicura che un certo Pod verrà deployato su un nodo a cui il Pod è tollerante. Il repellente assicura però che il nodo non avrà Pod in esecuzione che non sono tolleranti al suo repellente. Se ci si vuole assicurare che un Pod venga eseguito in un certo nodo, bisogna invece utilizzare la funzionalità di *Affinity*.
+
+Anche il *Master Node* del cluster potrebbe ricevere dei Pod, ma è tainted da Kubernetes quando il cluster viene creato. È possibile applicare un repellente ai Pod in modo che questi vengano deployati anche nel nodo master, ma è buona norma non farlo. Per conoscere il Taint del master:
+
+```bash
+kubectl describe node kubemaster | grep Taint
+```
+
+### Taints
+
+Per applicare un `taint` ad un nodo:
+
+```bash
+kubectl taint nodes <nome_nodo> key=value:taint-effect
+```
+
+Per rimuovere un `taint` aggiungere un `-` alla fine:
+
+```bash
+kubectl taint nodes <nome_nodo> key=value:taint-effect-
+```
+
+I `taint-effect` hanno dei valori ben definiti:
+
+* `NoSchedule`: il Pod non verrà deployato nel nodo.
+* `PreferNoSchedule`: lo Scheduler cercherà di non deployare il Pod sul nodo.
+* `NoExecute`: il Pod non verrà deployato nel nodo, ma anche i Pod già presenti verranno fermati e rimossi dal nodo.
+
+un esempio può essere:
+
+```bash
+kubectl taint nodes node1 app=blue:NoSchedule
+```
+
+### Tolerations
+
+Le `tolerations` vengono applicate nelle specifiche di un Pod:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+    name: myapp-pod
+spec:
+    containers:
+      - name: nginx-container
+        image: nginx
+    tolerations:
+      - key: "app"
+        operator: "Equal"
+        value: "blue"
+        effect: "NoSchedule"
+```
+
+*Nota*: tutti i valori definiti per la `toleration` devono essere stringhe tra doppi apici.
+
+I valori possibili per il campo `operator` sono:
+
+* Equal: se la `key` ha un valore `value`.
+* Exists: se la `key` esiste. Non deve essere specificato alcun `value`.
+
+## Node Selectors
+
+Pod che hanno un grosso carico computazionale potrebbero essere assegnati a nodi con poche risorse, e viceversa. Con il NodeSelector è possibile schedulare un Pod su un ben preciso nodo in funzione dei suoi label:
+
+```yaml
+# pod-specification.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+    name: myapp-pod
+spec:
+    containers:
+      - name: data-processor
+        image: data-processor
+    nodeSelector:
+        size: Large # deve essere un label assegnato al nodo
+```
+
+Per applicare un `label` ad un nodo:
+
+```bash
+kubectl label nodes <node-name> <label-key>=<label-value>
+```
+
+NodeSelector è molto limitato in quanto può selezionare solo nodi con un certo label, non può selezionare combinazioni di labels o escluderne alcune. Per questo è necessario usare Node Affinity.
+
+## Node Affinity
+
+Node Affinity permette di creare regole di selezione molto più complesse per selezionare i nodi in cui schedulare i Pod.
+
+Per schedulare un Pod in un nodo che combacia con più valori possibili del `label`, ad esempio:
+
+```yaml
+# pod-definition.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+ name: myapp-pod
+spec:
+ containers:
+ - name: data-processor
+   image: data-processor
+ affinity:
+   nodeAffinity:
+     requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: size
+            operator: In
+            values: # il Pod viene deployato in un nodo con uno dei due valori
+            - Large
+            - Medium
+```
+
+I valori possibili per gli operatori sono:
+
+* *In*
+* *NotIn*
+* *Exists*
+* *DoesNotExist*
+
+I tipi di Affinity sono:
+
+* `requiredDuringSchedulingIgnoredDuringExecution`: il Pod deve essere schedulato su un nodo che rispetta le regole di affinità.
+* `preferredDuringSchedulingIgnoredDuringExecution`: lo scheduler cercherà di rispettare le regole di affinità ma non è garantito.
+
+dove:
+
+* *DuringScheduling*: si intende quando il Pod deve essere creato e schedulato in un nodo.
+* *DuringExecution*: quando un Pod è già in esecuzione in un nodo.
+* *required*: se non c'è un nodo disponibile, il Pod rimane nello stato Pending. Viene utilizzato quando la selezione del nodo è cruciale.
+* *preferred*: se non c'è un nodo disponibile, viene schedulato su un altro nodo a caso.
+
+Al momento tutte le regole di affinità ignorano i Pod in esecuzione (*IgnoredDuringExecution*). Questo significa che se viene rimosso un label dal nodo, un Pod che aveva affinità col nodo ma non ce l'ha più continua comunque a funzionare.
+
+### Combinare Taints e Affinity
+
+Una combinazione corretta di Taints e Affinity permette di schedulare un Pod esattamente nel nodo che ci interessa, evitando al contempo che altri Pod interferiscano.
+
+1. Applicare al nodo una `taint` corrispondente alla `toleration` del Pod. Questo assicura che altri Pod non possano essere deployati su quel nodo. Ma il Pod interessato potrebbe essere schedulato in un altro nodo senza alcun `taint`.
+2. Applicare un `affinity` al Pod corrispondente ai `labels` del nodo. In questo modo lo scheduler dovrà deployare il Pod nel nodo che ha affinità con esso.
+3. Con questa combinazione, il Pod verrà sempre deployato nel nodo voluto, ed altri Pod estranei rimarranno sicuramente esclusi dal nodo.
+
 ## References
 
 1. [CKA Course - Scheduling](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/03-Scheduling)
