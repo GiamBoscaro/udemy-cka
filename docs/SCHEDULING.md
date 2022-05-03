@@ -211,6 +211,97 @@ Una combinazione corretta di Taints e Affinity permette di schedulare un Pod esa
 2. Applicare un `affinity` al Pod corrispondente ai `labels` del nodo. In questo modo lo scheduler dovrà deployare il Pod nel nodo che ha affinità con esso.
 3. Con questa combinazione, il Pod verrà sempre deployato nel nodo voluto, ed altri Pod estranei rimarranno sicuramente esclusi dal nodo.
 
+## Requisiti e Limiti Risorse
+
+Le risorse di un nodo sono CPU, Memoria e Disco. Lo Scheduler si occupa di deployare i Pod in nodi che abbiano abbastanza risorse disponibili per eseguirli. Se nessun nodo è libero, il Pod rimarra in Pending. Controllando gli eventi di un Pod è possibile verificare con precisione quale risorsa non è sufficiente. Per fare ciò:
+
+```bash
+kubectl describe pod <nome_pod> | grep "Events"
+```
+
+### Requisiti Risorse
+
+Di default, Kubernetes non assegna alcun requisito di risorse di default. Per specificare dei requisiti di risorse in un Pod, si utilizza il campo `resources`:
+
+```yaml
+# pod-definition.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+# ...
+spec:
+    containers:
+      - name: my-app
+        # ...
+    resources:
+        requests:
+            memory: "1Gi"
+            cpu: 1
+```
+
+* *CPU*: 1 CPU corrisponde ad un *Hyperthread*, oppure una *vCPU* (simile ad un core). La definizione varia in base al cloud provider utilizzato. Il valore minimo applicabile è `1m` (`100m` corrispondono a 0.1 CPU).
+* *Memory*: si specifica in *bytes* e suoi multipli. I multipli nel sistema internazionale (*Kilobyte*, *Megabyte*, *Gigabyte*) sono abbreviati con `K`, `M`, `G`, mentre i multipli in potenza di due (*Kibibyte*, *Mebibyte*, *Gibibyte* ) sono abbreviati con `Ki`, `Mi`, `Gi`.
+
+### Limiti Risorse
+
+Il consumo di risorse può aumentare o diminuire durante l'esecuzione del Pod. Se il consumo aumenta troppo, potrebbe soffocare gli altri Pod ed anche i processi interni al nodo. Per questo motivo è necessario limitare le risorse utilizzabili da un Pod. Di default Kubernetes non applica alcun limite alle risorse. È possibile e consigliato quindi specificare il limite massimo di risorse utilizzabili da un Pod nel suo *yaml*:
+
+```yaml
+# pod-definition.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+# ...
+spec:
+    containers:
+      - name: my-app
+        # ...
+    resources:
+        limits:
+            memory: "2Gi"
+            cpu: 2
+```
+
+Se un Pod cerca di utilizzare più CPU del previsto, la CPU va in throttling ma il Pod rimane in esecuzione. Se invece il Pod utilizza più memoria del previsto per un certo lasso di tempo, verrà terminato.
+
+I limiti sono assegnati al Pod, per cui nel caso di Pod con molteplici container al suo interno, questi container dovranno condividere le risorse e i suoi limiti.
+
+### LimitRange
+
+È possibile impostare un valore di default per `limits` e `requests` utilizzando LimitRange.
+
+```yaml
+# mem-limit-range.yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+    name: mem-limit-range
+spec:
+    limits:
+      - default:
+        memory: 512Mi
+        defaultRequest:
+            memory: 256Mi
+        type: Container
+```
+
+```yaml
+# cpu-limit-range.yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+    name: cpu-limit-range
+spec:
+    limits:
+      - default:
+        cpu: 512Mi
+        defaultRequest:
+            cpu: 256Mi
+        type: Container
+```
+
+## DaemonSets
+
 ## References
 
 1. [CKA Course - Scheduling](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/03-Scheduling)
