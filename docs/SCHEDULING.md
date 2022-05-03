@@ -302,6 +302,84 @@ spec:
 
 ## DaemonSets
 
+Un DeamonSets funziona come un ReplicaSet, ma replica il Pod in ogni singolo nodo presente nel cluster, anche quando altri nodi vengono aggiunti successivamente.
+È utile per avere in ogni singolo nodo dei Pod di utility come un monitor o un logger o log viewer. Anche il `kube-proxy` è un DeamonSets, perchè è necessario in ogni singolo nodo.
+
+Le specifiche *yaml* sono praticamente uguali ad un ReplicaSet:
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: monitoring-daemon
+  labels:
+    app: nginx
+spec:
+  selector:
+    matchLabels:
+      app: monitoring-agent
+  template:
+    metadata:
+     labels:
+       app: monitoring-agent
+    spec:
+      containers:
+      - name: monitoring-agent
+        image: monitoring-agent
+```
+
+Non è possibile creare un Daemon Set con `kubectl create`, ma è possibile comunque sfruttare i comandi da terminale con un piccolo trucchetto:
+
+1. Creare un Deployment (`kubectl create deployment <nome_deployment> --dry-run=client -o yaml > ds.yaml`)
+2. Rimuovere i campi `replicas`, `status`, `strategy` e sostituire a `kind: DaemonSet`.
+3. Eseguire con `kubectl apply -f ds.yaml`
+
+## Pod Statici
+
+Ogni singolo nodo esegue al suo interno `kubelet`. Il servizio non può operare tutte le funzionalità di un cluster, la sua funzione è di creare e rimuovere i Pod.
+
+Un singolo nodo può pertanto gestire Pod anche senza essere connesso ad un cluster. Questi Pod, gestiti autonomamente dal nodo, vengono detti Pod statici.
+
+Il nodo controlla periodicamente la cartella `etc/kubernetes/manifests`, ed esegue tutte le specifiche *yaml* presenti al suo interno. Se un file viene cancellato, anche il Pod viene rimosso. Se un file viene modificato, il Pod viene ricreato.
+
+*Nota*: `kubelet` può gestire solo e unicamente i Pod, per cui tutti i manifesti *yaml* devono essere del `kind` Pod.
+
+Il nodo può gestire contemporaneamente Pod statici e Pod del cluster. I Pod statici saranno visibili anche dal `kube-apiserver` e quindi visibili utilizzando `kubectl get pods`, ma saranno in sola lettura e non potranno essere modificati.
+
+I Pod Statici sono utili per creare nuovi nodi Master, ed è la stessa strategia che usa `kubeadm`. Per creare un nuovo master, basta installare `kubelet` nella nuova istanza e inserire nella cartella dei manifest le specifiche *yaml* di tutti i componenti principali di Kubernetes, come `etcd`, `kube-apiserver`, `controller-manager`. Questi verranno istanziati come Pod nel `kube-system`.
+
+### Cambiare la cartella dei Manifest
+
+All'esecuzione di `kubectl` è possibile passare un parametro per modificare la cartella di default contentente i file *yaml*:
+
+```bash
+# kubelet.service
+/usr/local/bin/kubelet --pod-manifest-path=/etc/kubernetes/manifests
+```
+
+I file del servizio sono posizionati in `/lib/systemd/system/`.
+In alternativa, è possibile indicare un file di configurazione esterno:
+
+```bash
+# kubelet.service
+/usr/local/bin/kubelet --config=kubeconfig.yaml
+```
+
+```yaml
+# kubeconfig.yaml
+staticPodPath: /etc/kubernetes/manifests
+```
+
+Questo approccio è quello usato da `kubeadm` durante il setup del cluster. Per trovare la posizione del file su un nodo in cui `kubelet` è già in esecuzione:
+
+```bash
+ps aux | grep kubelet
+```
+
+Nell'output che comprare, trovare l'opzione `config=/path/to/config.yaml` che indicherà la posizione del file di configurazione.
+
+## Scheduler Multipli
+
 ## References
 
 1. [CKA Course - Scheduling](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/03-Scheduling)

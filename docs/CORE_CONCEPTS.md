@@ -264,6 +264,8 @@ Per vedere la lista dei Pod presenti nel cluster:
 
 ```bash
 kubectl get pods
+# per avere informazioni più estese
+kubectl get pods -o wide
 ```
 
 Per avere dettagli e informazioni varie sul Pod appena creato:
@@ -305,6 +307,10 @@ spec:
     containers:
       - name: nginx-container
         image: nginx # se non preso da Docker Hub, specifica l'url del registro
+        # è possibile inserire anche un comando da eseguire all'avvio del container
+        command:
+            - sleep
+            - 1000
 ```
 
 Per eseguire il deploy:
