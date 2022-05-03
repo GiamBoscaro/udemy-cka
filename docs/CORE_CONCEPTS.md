@@ -315,6 +315,16 @@ kubectl apply -f pod-definition.yaml
 kubectl create -f pod-definition.yaml # create va in errore se il Pod esiste già
 ```
 
+### Generare un file YAML da un Pod in esecuzione
+
+Se un Pod è in esecuzione, sono pochissime le proprietà che possono essere cambiate (es: l'immagine del container). È quindi necessario cancellare e ricreare il Pod. È utile quindi generare il file *yaml* del Pod attualmente in esecuzione, in modo da fare le modifiche necessarie e deployarlo facilmente:
+
+```bash
+kubectl get pod <nome_pod> -o yaml > pod-definition.yaml
+```
+
+*Nota*: se un Pod è stato creato da un Deployment, è possibile semplicemente modificare le specifiche del Deployment e Kubernetes si occuperà di rimuovere e ricreare i Pod automaticamente.
+
 ## Replica Sets
 
 Il Replication Controller controlla che il numero desiderato di Pod sia in esecuzione nel cluster. Si occupa di sostituire i Pod in errore e crearne di nuovi per mantenere lo stato del cluster desiderato.
