@@ -380,6 +380,86 @@ Nell'output che comprare, trovare l'opzione `config=/path/to/config.yaml` che in
 
 ## Scheduler Multipli
 
+È possibile creare e deployare degli Scheduler personalizzati. Diversi Scheduler possono coesistere contemporaneamente nel cluster, ed è possibile impostare per ogni Pod a quale Scheduler deve essere affidato.
+
+Per vedere gli Scheduler attivi:
+
+```bash
+kubectl get pods --namespace=kube-system
+```
+
+### Deploy di uno Scheduler
+
+Il deploy di un nuovo Scheduler viene effettuato come con `kube-scheduler`.
+
+```bash
+ExecStart=/usr/local/bin/kube-scheduler
+    --config=/etc/kubernetes/config/kube-scheduler.yaml
+    --scheduler-name=my-custom-scheduler # nome dello scheduler
+```
+
+Per personalizzare il nuovo Scheduler, è possibile modificare il suo file *yaml* e deployarlo:
+
+```yaml
+apiVersion: vl
+kind: Pod
+metadata:
+    name: my-custom-scheduler
+    namespace: kube-system
+spec:
+    containers:
+    command:
+    - kube-scheduler
+    - --address=127.0.0.1
+    - --kubeconfiq=/etc/kubernetes/scheduler.conf
+    - --leader-elect=true
+    - --scheduler-name=my-custom-scheduler
+    - --lock-object-name=my-custom-scheduler
+    image: k8s.gcr.io/kube-scheduler-amd64:v1.11
+    name: kube-scheduler
+```
+
+Il file esegue i comandi definiti nella proprietà `command`, in particolare:
+
+* `leader-elect`: necessario quando copie multiple dello scheduler sono in esecuzione in diversi nodi master. Solo una delle copie può funzionare alla volta. Se ci fossero problemi al Pod leader, un altra copia prenderebbe il suo posto. Questa opzione è necessaria quando si hanno più nodi master, mentre può rimanere a false quando il master è solo uno.
+* `lock-object-name`: necessario quando `leader-elect` è `true` e sono presenti più nodi master. Permette di indicare durante l'elezione del leader che il nuovo Scheduler è diverso da quello di default e da eventuali altri Scheduler.
+* `scheduler-name`: nome del nuovo scheduler
+
+### Utilizzo del nuovo Scheduler
+
+Per indicare ad un Pod di utilizzare il nuovo scheduler:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+  - image: nginx
+    name: nginx
+  schedulerName: my-custom-scheduler
+```
+
+*Nota*: Se lo Scheduler non è configurato correttamente, il Pod rimarrà nello status di Pending.
+
+### Eventi e Logs
+
+Per verificare il corretto funzionamento dello Scheduler è possibile visionare gli Eventi del cluster e i logs dello Scheduler:
+
+Per mostrare tutti gli eventi avvenuti nel Namespace corrente:
+
+```bash
+kubectl get events
+```
+
+Per vedere i logs dello Scheduler:
+
+```bash
+kubectl logs my-custom-scheduler -n kube-system
+```
+
 ## References
 
 1. [CKA Course - Scheduling](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/03-Scheduling)
+2. [Scheduler Code Hierarchy Overview](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-scheduling/scheduling_code_hierarchy_overview.md)
