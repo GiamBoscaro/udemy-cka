@@ -37,6 +37,16 @@ kubectl top node
 kubectl top pod
 ```
 
+## Logs delle Applicazioni
+
+I logs possono essere visualizzati in modo molto simile a Docker. Per visualizzare i log che un container produce dentro un Pod, utilzzare:
+
+```bash
+kubectl logs -f <pod-name> <container-name>
+```
+
+Il nome del container è opzionale se dentro il Pod è presente un solo container.
+
 ## References
 
 1. [CKA Course - Logging and Monitoring](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/04-Logging-and-Monitoring)
