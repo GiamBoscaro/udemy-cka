@@ -119,6 +119,207 @@ spec:
    args: ["10"]
 ```
 
+## Variabili d'Ambiente
+
+Come su un `docker-compose`, è possibile importare le variabili d'ambiente di un container. Ci sono tre modi diversi per specificare le variabili:
+
+* In modo diretto
+* tramite Config Map
+* tramite Secrets
+
+Per impostare le variabili d'ambiente in un Pod, utilizzare il campo `env`:
+
+```yaml
+# pod-definition.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: simple-webapp-color
+spec:
+ containers:
+ - name: simple-webapp-color
+   image: simple-webapp-color
+   ports:
+   - containerPort: 8080
+   env:
+   - name: APP_COLOR
+     value: pink
+```
+
+Per importare la variabile da una Config Map utilizzare:
+
+```yaml
+env:
+- name: APP_COLOR
+  valueFrom:
+    configMapKeyRef:
+      name: <nome_config_map>
+      key: <chiave_variabile> # nome della variabile nella config map
+```
+
+oppure da un Secret
+
+```yaml
+env:
+- name: APP_COLOR
+  valueFrom:
+    secretKeyRef: <...>
+```
+
+## Config Map
+
+Una Config Map permette di raccogliere in un manifest molte variabili d'ambiente condivise tra vari Pod. Aggiornando la Config Map, tutti i Pod interessati riceveranno i nuovi valori delle variabili.
+
+Per creare una Config Map in modo imperativo:
+
+```bash
+kubectl create configmap <nome-config> --from-literal=KEY=value \       
+  --from-literal=KEY2=value2
+```
+
+per ogni variabile d'ambiente, è necessario specificare l'opzione `--from-literal`. Questo diventa complesso per una mappa con molte variabili, per cui è anche possibile leggere le varibili da un file `.env` e simili:
+
+```bash
+kubectl create configmap <nome-config> --from-file=path/to/.env
+```
+
+### Deploy di una Config Map da manifest YAML
+
+È possibile anche creare un manifest *yaml* da cui creare la Config Map:
+
+```yaml
+# config-definition.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  APP_COLOR: blue
+  APP_MODE: prod
+  # ...
+```
+
+### Iniettare i valori di una Config Map su un Pod
+
+Per iniettare tutti i valori presenti nella Config Map in un Pod:
+
+```yaml
+spec:
+  envFrom:
+  - configMapRef:
+      name: app-config # nome della config map
+```
+
+*Nota*: le variabili saranno iniettate con lo stesso nome con cui sono presenti dentro la Config Map.
+
+Per iniettare una singola variabile:
+
+```yaml
+env:
+- name: APP_COLOR # mome della variabile nel Pod
+  valueFrom:
+    configMapKeyRef:
+      name: app-config
+      key: APP_COLOR # nome della variabile nella config map
+```
+
+Questo procedimento permette anche di cambiare nome alla variabile dentro il Pod. È anche possibile iniettare il file delle variabili d'ambiente direttamente da un volume:
+
+```yaml
+volumes:
+  - name: app-config-volume
+    configMap:
+      name: app-config
+```
+
+## Secrets
+
+Un Secret è una Config Map utilizzata per salvare variabili sensibili, come password e segreti. Come per le Config Map, è possibile creare un Secret da CLI elencando tutte le variabili al suo interno:
+
+```bash
+kubectl create secret generic <nome-secret> --from-literal=KEY=value \       
+  --from-literal=KEY2=value2
+```
+
+oppure leggendole da un file:
+
+```bash
+kubectl create secret generic <nome-secret> --from-file=path/to/.env
+```
+
+### Deploy di un Secret da manifest YAML
+
+Se si genera un Secret da un file *yaml* è necessario indicare i valori delle variabili in `base64`:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+data:
+  DB_Host: bX1zcWw=
+  DB_User: cm9vdA==
+  DB_Password: cGFzd3Jk
+```
+
+per codificare in `base64`  una stringa:
+
+```bash
+echo -n 'password' | base64
+# per decodificare
+echo -n 'password' | base64 --decode
+```
+
+### Iniettare i valori di una Secret su un Pod
+
+Per iniettare tutti i valori presenti nel Secret in un Pod:
+
+```yaml
+spec:
+  envFrom:
+  - secretRef:
+      name: app-secret # nome del secret
+```
+
+*Nota*: le variabili saranno iniettate con lo stesso nome con cui sono presenti dentro il Secret.
+
+Per iniettare una singola variabile:
+
+```yaml
+env:
+- name: APP_COLOR # mome della variabile nel Pod
+  valueFrom:
+    secretKeyRef:
+      name: app-secret
+      key: APP_COLOR # nome della variabile nel secret
+```
+
+Questo procedimento permette anche di cambiare nome alla variabile dentro il Pod. È anche possibile iniettare il file delle variabili d'ambiente direttamente da un volume:
+
+```yaml
+volumes:
+  - name: app-secret-volume
+    secret:
+      name: app-secret
+```
+
+*Nota*: quando viene utilizzato un volume per salvare i secret, all'interno del Pod viene creato un volume con al suo interno un file per ogni chiave presente nel Secret. I valori delle chiavi sono contenuti __in chiaro__ dentro questi file.
+
+### Best Practices per la Sicurezza
+
+I Secret, anche se codificati in `base64`, non sono molto più sicuri di una Config Map. Kubernetes però gestisce i Secret in modo diverso che le Config Map, ad esempio:
+
+* Il valore del Secret viene inviato al nodo solo nel momento in cui viene effettivamente richiesto da un Pod nel nodo.
+* `kubelet` salva i valori dei Secret che sono arrivati al nodo in un file system temporaneo (*tmpfs*) e non sul disco rigido.
+* Quando un Pod viene distrutto, i segreti che non sono più utilizzati vengono cancellati dal nodo.
+
+Per rendere più sicuro il cluster, è possibile seguire queste linee guida:
+
+* Non caricare i manifest dei Secret nelle repository (a differenza delle ConfigMap che possono essere caricate tranquillamente).
+* Abilitare *Encryption at Rest*. Questo permette di salvare i segreti nell'`etcd` criptati (Vedere documentazione [Encrypting Secret Data at Rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/)).
+* Utilizzare soluzioni alternative ai Secret come *Helm Secrets* o *HashiCorp Vault*.
+
 ## References
 
 1. [CKA Course - Application Lifecycle Management](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/05-Application-Lifecycle-Management)
+2. [Encrypting Secret Data at Rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/)
