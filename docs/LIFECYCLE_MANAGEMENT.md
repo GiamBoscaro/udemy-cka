@@ -319,7 +319,49 @@ Per rendere più sicuro il cluster, è possibile seguire queste linee guida:
 * Abilitare *Encryption at Rest*. Questo permette di salvare i segreti nell'`etcd` criptati (Vedere documentazione [Encrypting Secret Data at Rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/)).
 * Utilizzare soluzioni alternative ai Secret come *Helm Secrets* o *HashiCorp Vault*.
 
+## Pods Multi Container
+
+Certe volte è utile avere più container nello stesso Pod, che possano comunicare facilmente e che vengano sempre creati e distrutti assieme. I motivi per avere più container nello stesso Pod sono tra i più vari, ma vi sono tre Design Pattern utilizzati principalmente:
+
+* *Side Car*: un container per il servizio e uno o più container *helper* che hanno senso di esistere solo quando il servizio primario è attivo. Gli *helper* potrebbero essere dei servizi di loggin o di sincronizzazione. I container funzionano in parallelo.
+* *Adapter*: Un servizio primario e un container adattatore, per standardizzare o convertire i dati in input e output del Pod. Utile anche per dei servizi che fanno aggregazioni. I container funzionano in seriale, tutti i dati passano dall'adapter.
+* *Ambassador*: un container del servizio primario e un container *ambassador*. L'ambasciatore funziona come un proxy e permette al servizio primario di connettersi a diversi endpoint in funzione dell'ambiente in cui si sta operando. Per cui, nel servizio primario l'endpoint è sempre lo stesso, ed è il container ambasciatore che cambia il puntamento in funzione dell'ambiente. I servizi funzionano in seriale. Tutti i dati passano dall'ambasciatore.
+
+## Init Containers
+
+Tutti i container all'interno di un Pod devono rimanere attivi per tutto il tempo oppure il Pod cercherà di restartarli continuamente. Ci sono però alcuni casi in cui un container potrebbe dover funzionare solo fino al completamento di un attività, oppure essere eseguito ad intervalli di tempo.
+
+Per poter fare cioò vengono utilizzati gli Init Containers, cioè dei container che il Pod esegue prima del processo principale.
+
+Possono essere uno o più, e verranno eseguiti in ordine. Tutti gli Init Containers devono completare con successo la loro attività prima che il container primario venga eseguito. Se un Init Container fallisce, il Pod viene restartato finchè tutti i processi di inizializzazione non vengono completati.
+
+Per configurare degli Init Containers in un Pod, aggiunger nelle specifiche i container nel campo `initContainers`:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels:
+    app: myapp
+spec:
+  containers:
+  - name: myapp-container
+    image: busybox:1.28
+    command: ['sh', '-c', 'echo The app is running! && sleep 3600']
+  initContainers:
+  - name: init-myservice
+    image: busybox
+    command: ['sh', '-c', 'git clone <some-repository-that-will-be-used-by-application> ; done;']
+```
+
+## Applicazioni Self-Healing
+
+Il Replication Controller permette di tenere sotto controllo lo stato dei Pod e di ricrearli qual'ora crashassero.
+Esistono due ulteriori metodi per controllare lo stato di un Pod con più precisione: Liveness Probes e Readiness Probes.
+
 ## References
 
 1. [CKA Course - Application Lifecycle Management](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/05-Application-Lifecycle-Management)
 2. [Encrypting Secret Data at Rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/)
+3. [Configure Liveness, Readiness and Startup Probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
