@@ -154,4 +154,182 @@ A questo punto l'utente può accedere al cluster tramite autenticazione.
 
 ## Certificati TLS
 
+Nel cluster vi sono varie comunicazioni che vanno protette:
+
+* Tra *Master Node* e *Worker Nodes*.
+* Tra gli amministratori del cluster e il *Master Node*
+* Tra tutti i componenti del cluster.
+
+Tutte queste connessioni vengono protette tramite TLS.
+
+### Componenti di Kubernetes
+
+I componenti "server" che richiedono un certificato TLS sono:
+
+* `kubeapi-server`: tutte le chiamate passano per il `kubeapi-server`, che è quindi il componente server più importante.
+* `etcd`: riceve chiamate dal `kube-apiserver`. Il `kubeapi-server` è quindi anche un client visto sotto il punto di vista di `etcd`.
+* `kubelet`: riceve istruzioni dal `kube-apiserver`. Il `kubeapi-server` è quindi anche un client per lui.
+
+*Nota*: il `kubeapi-server` può utilizzare gli stessi certificati generati come server come client, quando deve chiamare `etcd` e `kubelet`. In alternativa, è possibile generare dei certificati appositi per queste connessioni.
+
+mentre i componenti "client" che richiedono il TLS sono:
+
+* `kubectl`: l'amministratore del cluster utilizza `kubectl` per inviare comandi al `kubeapi-server`.
+* `kube-scheduler`: lo *Scheduler* invia comandi al `kubeapi-server` per cui è un suo client.
+* `kube-controller-manager`: il *Controller Manager* è un client di `kubeapi-server`.
+* `kube-proxy`: il *Kube Proxy* è un client di `kubeapi-server`.
+
+Oltre a questi certificati, vi sono anche i certificati della *Certificate Authority*. Kubernetes richiede almeno una CA, ma se ne possono anche avere più di una.
+
+![Componenti che richiedono certificati nel cluster](../assets/section-7/cluster_certs.PNG)
+
+*Nota*: Le public key hanno in genere l'estensione `crt` o `pem`, mentre le private key hanno l'estensione `key` oppure `-key.pem`.
+
+### Creare il Certificato della CA
+
+Per prima cosa, viene generato il certificato della *Certificate Authority*. In questo caso, il certificato è self-signed:
+
+```bash
+# Genera la chiave privata
+openssl genrsa -out ca.key 2048
+# Genera la sign request
+openssl req -new -key ca.key -subj "/CN=KUBERNETES-CA" -out ca.csr # CN=Common Name, il nome del servizio
+# Firma la richiesta con la chiave privata e genera il certificato (chiave pubblica)
+openssl x509 -req -in ca.csr -signkey ca.key -out ca.crt
+```
+
+Questo certificato verrà usato per firmare tutte gli altri certificati generati.
+
+__NB__: è necessario distribuire il certificato CA a __tutti__ i componenti che dovranno autenticarsi nel cluster.
+
+### Creare il Certificato dell'Amministratore
+
+Si può procedere poi a creare gli altri certificati. Il certificato per l'amministratore sarà un certificato per client, essendo l'amministratore un client che si connette al cluster:
+
+```bash
+openssl genrsa -out admin.key 2048
+# Genera il certificato per l'amministratore e lo inserisce nel gruppo dei masters
+openssl req -new -key admin.key -subj "/CN=kube-admin/O=SYSTEM:MASTERS" -out admin.csr
+# firmato con la chiave della CA
+openssl x509 -req -in admin.csr -CA ca.crt -CAkey ca.key -out admin.crt
+```
+
+E importante ricordasi di insererire `/O=SYSTEM:MASTERS` in modo che l'utente venga assegnato al gruppo degli amministratori.
+
+*Nota*: il CN può essere uno qualsiasi, ma è importante assegnare un nome parlante perchè è questo il nome utilizzato per l'autenticazione e comparirà nei logs.
+
+Per autorizzare una chiamata `curl` con un certificato TLS:
+
+```bash
+curl https://kube-apiserver:6443/api/v1/pods \
+    --key admin.key 
+    --cert admin.crt 
+    --cacert ca.crt
+```
+
+*Nota*: l'opzione `--cacert` è necessaria perchè il certificato è self-signed. Un certificato proveniente da una vera CA dovrebbe già essere contenuto nel sistema. Se si vuole, è possibile inserire anche il `ca.crt` self-signed tra i certificati riconosciuti nel sistema, copiandolo nella cartella `/etc/pki/tls/certs` (o `/etc/ssl/certs`).
+
+### Creare i Certificati dei Componenti di Sistema
+
+I componenti di sistema sono a loro volta dei client di `kubeapi-server`. Vengono creati allo stesso modo del certificato di amministratore, ma è necessario ricordarsi del prefisso `SYSTEM:` nel CN. Si procede quindi alla generazione dei certificati per `kube-scheduler`, `kube-controller-manager`, `kube-proxy`:
+
+```bash
+openssl genrsa -out scheduler.key 2048
+openssl req -new -key scheduler.key -subj "/CN=system:kube-scheduler" -out scheduler.csr
+openssl x509 -req -in scheduler.csr -CA ca.crt -CAkey ca.key -out scheduler.crt
+```
+
+### Creare i Certificati per etcd
+
+I certificati vengono generati allo stesso modo di tutti gli altri. In un setup in cui anche `etcd` è replicato, è necessario generare i certificati per ogni replica.
+I certificati vanno poi specificati all'avvio del servizio, oppure se si utilizza `kubeadmin`, nel manifest `etcd.yaml`:
+
+```yaml
+command:
+    - etcd
+    --key-file=/path-to-certs/etcdserver.key
+    --cert-file=/path-to-certs/etcdserver.crt
+    --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+    # se ci sono repliche:
+    --peer-cert-file=/path-to-certs/etcdpeer1.crt
+    --peer-client-cert-auth=true
+    --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+    --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+```
+
+### Creare i Certificati per KubeAPI Server
+
+I certificati per il `kubeapi-server` vengono sempre creati con lo stesso procedimento. Il `kubeapi-server` è il componente che riceve chiamate da tutti gli altri componenti. Diversi servizi e componenti potrebbero chiamare il `kubeapi-server` con un diverso nome dal CN. Per questo motivo è necessario configurare anche gli alias. Per fare cioè è necessario creare un file di configurazione prima della creazione della chiave:
+
+```conf
+[req]
+req_extensions= v3_req
+[v3_req]
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation,
+subjectAltName = @alt_names
+[alt_names]
+DNS.1 = kubernetes
+DNS.2 = kubernetes.default
+DNS.3 = kubernetes.default.sve
+DNS.4 = kubernetes.default.svc.cluster.local
+IP.1 = 10.96.0.1
+IP.2 = 172.17.0.87
+```
+
+e poi generare la chiave specificando il file di configurazione:
+
+```bash
+openssl genrsa -out apiserver.key 2048
+openssl req -new -key apiserver.key -subj "/CN=kube-apiserver" -out apiserver.csr --config openssl.cnf
+openssl x509 -req -in apiserver.csr -signkey apiserver.key -out apiserver.crt
+```
+
+È possibile anche generare i certificati client di `kubeapi-server`, usati per le connessioni a `kubelet` e `etcd`. Tutti questi certificati vanno specificati all'avvio del servizio:
+
+```bash
+ExecStart=/usr/local/bin/kube-apiserver \\
+# Certificati client per etcd
+--etcd-cafile=/var/lib/kubernetes/ca.pem \\
+--eted-certfile=/var/lib/kubernetes/apiserver-etcd-client.crt \\
+--etcd-keyfile=/var/lib/kubernetes/apiserver-etcd-client.key \\
+# Certificati client per kubelet
+--kubelet-certificate-authority=/var/lib/kubernetes/ca.pem \\
+--kubelet-client-certificate=/var/lib/kubernetes/apiserver-eted-client.crt \\
+--kubelet-client-key=/var/lib/kubernetes/apiserver-etcd-client.key \\
+# Certificati kubeapi server
+--client-ca-file=/var/lib/kubernetes/ca.pem \\
+--tls-cert-file=/var/lib/kubernetes/apiserver.crt \\
+--tls-private-key-file=/var/lib/kubernetes/apiserver.key \\
+```
+
+### Creare i Certificati per ogni Kubelet
+
+Ogni nodo del cluster deve avere un certificato. Il certificato verrà nominato col nome del nodo, e verrà aggiunto a `kubelet-config.yaml`:
+
+```yaml
+kind: KubeletConfiguration
+apiVersion: kubelet.contig.k8s.io/v1beta1
+authentication:
+    x509:
+        clientCAFile: "/var/lib/kubernetes/ca.pem"
+authorization:
+    mode: Webhook
+clusterDomain: "cluster.local"
+clusterdNS:
+    - "10.32.0.10"
+tlsCertfile: "/var/lib/kubelet/kubelet-node01.crt"
+tlsPrivateKeyFile: "/var/lib/kubelet/kubelet-node01.key"
+```
+
+Kubelet comunica anche con il KubeAPI Server come client, per cui è necessario generare anche i certificati client per ogni nodo. Il KubeAPI Server deve conoscere quale nodo lo sta contattando, per cui il CN deve seguire la nomenclatura `SYSTEM:NODE:<nome_nodo>`:
+
+```bash
+openssl genrsa -out node01-client.key 2048
+openssl req -new -key node01-client.key -subj "/CN=SYSTEM:NODE:NODE01/O=SYSTEM:NODES" -out node01-client.csr
+openssl x509 -req -in node01-client.csr -CA ca.crt -CAkey ca.key -out node01-client.crt
+```
+
+Per avere i permessi corretti, il nodo deve essere dentro il gruppo `SYSTEM:NODES`.
+
 1. [CKA Course - Security](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/07-Security)
