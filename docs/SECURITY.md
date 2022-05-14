@@ -332,4 +332,125 @@ openssl x509 -req -in node01-client.csr -CA ca.crt -CAkey ca.key -out node01-cli
 
 Per avere i permessi corretti, il nodo deve essere dentro il gruppo `SYSTEM:NODES`.
 
+### Vedere i Dettagli dei Certificati
+
+È importante tenere sotto controllo e organizzati tutti i certificati del cluster, magari su una tabella che contenga tutti i dettagli di ogni certificato (vedi [certs-checker.xlsx](/assets/section-7/kubernetes-certs-checker.xlsx)).
+Per vedere i dettagli di un certificato nel cluster:
+
+```bash
+openssl x509 -in /path/to/certificate -text -noout
+```
+
+Prendere nota sopratutto dei seguenti parametri:
+
+* *Issuer*: è la CA. Se si utilizza `kubeadm`, il valore sarà `CN=kubernetes`.
+* *Validity*: il periodo di validità del certificato.
+* *Subject*: il *Common Name* del servizio che si sta certificando.
+* *Alternative Name*: tutti i nomi alternativi del CN.
+
+### Debugging dei Problemi TSL
+
+Se vi sono dei problemi nel cluster riguardanti la connettività, è possibile controllare i log dei vari servizi per verificare che non siano problemi di certificati.
+
+Se i servizi sono stati installati da zero nella macchina, si possono vedere i log di sistema con:
+
+```bash
+journalctl -u etcd.service -l
+```
+
+Se invece si utilizza `kubeadm`:
+
+```bash
+kubectl logs etcd-master
+```
+
+Se i problemi riguardano direttamente `kubeapi-server` o `etcd` potrebbe non funzionare il comando `kubectl`, per cui è necessario andare a controllare i log direttamente nei container docker:
+
+```bash
+docker ps -a
+docker logs <id_container>
+```
+
+## API per la Generazione dei Certificati
+
+Il *Master Node* del cluster contiene i certificati CA, per cui il *Master* è anche la *Certificate Authority* del cluster.
+Ogniqualvolta bisogna generare un nuovo certificato (ad esempio, per un nuovo amministratore), è necessario che un utente già certificato entri nel *Master* e firmi la nuova CSR con il certificato CA presente nel server.
+
+Kubernetes espone però un API che permette di firmare i certificati senza accedere al nodo e firmandoli manualmente, ma passando solo attraverso `kubectl`. Questa procedura è gestita dal *Controller Manager*, e in particolare dai controller *CRS-APPROVING* e *CSR-SIGNING*. Prima di poter utilizzare l'API, devono essere configurate le chiavi CA nel `kube-controller-manager.yaml` (o nel relativo servizio nel caso fosse installato nel sistema senza `kubeadm`):
+
+```yaml
+spec:
+    containers:
+        command:
+        - kube-controller-manager
+        - --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt
+        - --cluster-signing-key-file=/etc/kubernetes/pki/ca.key
+        # ...
+```
+
+La procedura per la creazione di un nuovo certificato tramite API è la seguente:
+
+1. Il nuovo utente crea una chiave e la sua csr:
+
+```bash
+openssl genrsa -out user.key 2048
+openssl req -new -key user.key -subk "/CN=user" -out user.csr
+```
+
+2. L'amministratore del cluster crea un oggetto *Certificate Signing Request* da inviare al cluster:
+
+```yaml
+apiVersion: certificates.k8s.io/v1beta1
+kind: CertificateSigningRequest
+metadata:
+  name: user
+spec:
+  groups:
+  - system:authenticated
+  usages:
+  - digital signature
+  - key encipherment
+  - server auth
+  request:
+    /path/to/csr #in base64
+```
+
+*Nota*: la csr deve essere codificata in base64:
+
+```bash
+cat user.csr | base64 | tr -d "\n"
+```
+
+3. Tutti gli amministratori già certificati possono vedere, revisionare la richiesta e approvarla:
+
+```bash
+kubectl get csr
+kubectl certificate approve <nome_certificato> # es: user
+```
+
+4. Il certificato firmato può essere visto con:
+
+```bash
+kubectl get csr <nome_certificato> -o yaml
+```
+
+Il certificato firmato sarà visibile nella proprietà `certificate` in `base64`:
+
+```yaml
+# ...
+status:
+  certificate:
+Ef6IgJGsre... # in base 64
+# ...
+```
+
+Per decodificarlo:
+
+```bash
+echo <certificato> | base64 --decode
+```
+
+5. Il certificato decodificato dovrà essere dato al nuovo utente che potrà ora essere autenticato nel cluster.
+
 1. [CKA Course - Security](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/07-Security)
+2. [PKI Certificates and Requirements](https://kubernetes.io/docs/setup/best-practices/certificates/)
