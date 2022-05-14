@@ -400,17 +400,16 @@ openssl req -new -key user.key -subk "/CN=user" -out user.csr
 2. L'amministratore del cluster crea un oggetto *Certificate Signing Request* da inviare al cluster:
 
 ```yaml
-apiVersion: certificates.k8s.io/v1beta1
+apiVersion: certificates.k8s.io/v1
 kind: CertificateSigningRequest
 metadata:
   name: user
 spec:
+  signerName: kubernetes.io/kube-apiserver-client # a chi è diretta la richiesta
   groups:
   - system:authenticated
   usages:
-  - digital signature
-  - key encipherment
-  - server auth
+  - client auth
   request:
     /path/to/csr #in base64
 ```
@@ -421,11 +420,15 @@ spec:
 cat user.csr | base64 | tr -d "\n"
 ```
 
+*Nota*: la proprietà `signerName` è obbligatoria dalla versione 1.19. Indica a chi è diretta la richiesta di firma. In genere è semppre `kubernetes.io/kube-apiserver-client`, che dirma i certificati per accedere al `kubeapi-server` come client.
+
 3. Tutti gli amministratori già certificati possono vedere, revisionare la richiesta e approvarla:
 
 ```bash
 kubectl get csr
 kubectl certificate approve <nome_certificato> # es: user
+# per rifiutarlo:
+kubectl certificate deny <nome_certificato>
 ```
 
 4. Il certificato firmato può essere visto con:
@@ -451,6 +454,111 @@ echo <certificato> | base64 --decode
 ```
 
 5. Il certificato decodificato dovrà essere dato al nuovo utente che potrà ora essere autenticato nel cluster.
+
+## KubeConfig
+
+Quando si utilizza il comando `kubectl`, questo una configurazione di default per inviare i comandi al cluster. Molte volte si hanno però molti cluster da gestire, ed ogni cluster richiede l'accesso con utenti diversi e certificati diversi.
+È possibile specificare manualmente, ad ogni comando, il cluster di destinazione e i certificati necessari:
+
+```bash
+kubectl get pods
+    --servermy-kube-playground:6443
+    --client-key admin.key
+    --client-certificate admin.crt
+    --certificate-authority ca.crt
+```
+
+ma questo procedimento sarebbe troppo complicato. La soluzione migliore è utilizzare un file di configurazione e indicare solo quello nel comando
+
+```bash
+kubectl get pods --kubeconfig config
+```
+
+Di default, `kubectl` cerca il file in `$HOME/.kube/config`, per cui se si salva la configurazione in questa posizione, non è neanche necessario usare l'opzione `--kubeconfig`.
+
+Vi sono tre campi da configurare in *KubeConfig*:
+
+* `clusters`: i server a cui ci si vuole connettere.
+* `users`: gli utenti che si vogliono utilizzare per la connessione al cluster.
+* `contexts`: associa gli utenti ai cluster.
+
+Il file di configurazione è un manifest *yaml*:
+
+```yaml
+apiVersion: v1
+kind: Config
+current-context: dev@kube-dev
+clusters:
+  - name: kube-dev
+    cluster:
+        certificate-authority: ca.crt
+        server: https://kubernetes:6443
+users:
+  - name: dev
+    user:
+        client-certificate: admin.crt
+        client-key: admin.key
+contexts:
+  - name: dev@kube-dev
+    context:
+        cluster: kube-dev
+        user: dev
+        namespace: finance # opzionale, di default va su default namespace
+```
+
+`current-context` indica il contesto attuale al quale `kubectl` invierà i comandi di default. Per cambiare il contesto:
+
+```bash
+kubectl set-context prod@kube-prod
+```
+
+*Nota*: questo comando aggiorna anche il file di configurazione.
+
+Per vedere la configurazione direttamente con `kubectl`:
+
+```bash
+kubectl config view
+# se la configurazione non è su $HOME/.kube/config bisogna specificarla
+kubectl config view --kubeconfig=my-custom-config
+```
+
+*Nota*: è possibile operare sulla configurazione completamente da `kubectl` con tutti i comandi visibili in `kubectl config -h`.
+
+### Certificati in KubeConfig
+
+I certificati presenti nella configurazione possono essere indicati in due diversi modi:
+
+* `certificate`: inserendo la path del certificato (es: `certificate-authority: /path/to/crt`).
+* `certificate-data`: inserendo il contenuto del certificato in base64 (es: `certificate-authority-data: LS0tLS1CRU...`).
+
+## Specifiche API e Gruppi
+
+Le API di Kubernetes sono raggiungibili tramite `kubectl` ma anche tramite delle classiche API REST. Vi sono diversi path delle API:
+
+* `/version`: ritorna informazioni sulla versione delle API.
+* `/metrics`: contiene risorse sulle metriche, usate per controllare lo stato del cluster.
+* `/healthz`: contiene API per controllare la salute del cluster.
+* `/logs`: contiene risorse per l'integrazione con sistemi di monitoraggio e log esterni.
+* `/api`: contiene le Core API, sono le API più vecchie con i servizi principali di Kubernetes.
+* `/apis`: contiene tutti gli altri gruppi di API. Sono più recenti. Ogni gruppo è diviso in Risorse e Verbi.
+
+![Gruppi e risorse delle namaed APIs](/assets/section-7/named_apis.PNG)
+
+Se si prova ad accedere alle API che richiedono autenticazione verrà restituito un errore. Infatti deve essere precisato, ad ogni chiamata, la posizione dei certificati che si vogliono utilizzare per l'autenticazione.
+
+```bash
+curl http://localhost:6443 -k
+    --key admin. key
+    --cert admin.crt
+    --cacert ca.crt
+```
+
+Per evitare di dover inserire questi comandi ogni volta, è possibile utilizzare il `kubectl proxy`, che legge questi certificati dalla `kubeconfig` ed espone un indirizzo locale al quale possono essere inviate tutte le richieste alle API. È il proxy che si occupa di inviare anche i certificati.
+
+```bash
+kubectl proxy # espone localhost:8001
+curl http://localhost:8001 -k # non è piu necessario indicare i certificati
+```
 
 1. [CKA Course - Security](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/07-Security)
 2. [PKI Certificates and Requirements](https://kubernetes.io/docs/setup/best-practices/certificates/)
