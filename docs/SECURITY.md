@@ -544,6 +544,12 @@ Le API di Kubernetes sono raggiungibili tramite `kubectl` ma anche tramite delle
 
 ![Gruppi e risorse delle namaed APIs](/assets/section-7/named_apis.PNG)
 
+Tutte le risorse (che verrano poi utilizzate per la definizione dei ruoli) sono elencabili con:
+
+```bash
+kubectl api-resources
+```
+
 Se si prova ad accedere alle API che richiedono autenticazione verrà restituito un errore. Infatti deve essere precisato, ad ogni chiamata, la posizione dei certificati che si vogliono utilizzare per l'autenticazione.
 
 ```bash
@@ -559,6 +565,131 @@ Per evitare di dover inserire questi comandi ogni volta, è possibile utilizzare
 kubectl proxy # espone localhost:8001
 curl http://localhost:8001 -k # non è piu necessario indicare i certificati
 ```
+
+## Permessi e Autorizzazioni
+
+Dopo che un utente è stato autenticato, è necessario verificare quali permessi ha l'utente e su cosa può operare nel cluster. Vi sono diversi modi di autorizzare l'utente:
+
+* *Node*: autorizza le richieste fatte dai `kubelets` nei vari nodi, verso il `kubeapi-server`. Per utilizzare questa autorizzazione, è necessario che l'utente abbia uno username del tipo `system:node:<nome_nodo>` e il gruppo `system:nodes`.
+* *ABAC*: vengono definiti i permessi utente per utente, in un file JSON. È necessario definire manualmente tutti i permessi, ed ogni modifica richiede il riavvio dell'Kube API Server. Non viene utilizzato spesso.
+* *RBAC*: Vengono definiti dei ruoli con i loro permessi. Gli utenti vengono associati al ruolo. Le modifiche vanno apportate ai permessi del ruolo, e si riflettono su tutti gli utenti che appartengono a quel ruolo.
+* *Webhook*: utilizzato per integrare un sistema di autorizzazione esterno (es: [Open Policy Agent](https://www.openpolicyagent.org)). Il controllo dell'autorizzazione viene fatto dal sistema esterno, che utilizza il webhook per dare una conferma o negare l'autorizzazione al cluster.
+
+*Nota*: vi sono altri due tipo di autorizzazioni: *Always Allow* e *Always Deny*, che permettono o negano tutte le autorizzazioni.
+
+Il tipo (o i tipi) di autorizzazione vengono definiti nel `kubeapi-server`, con l'opzione `--authorization-mode`. Di default, l'opzione selezionata è `AlwaysAllow`.
+Se vengono inseriti più tipi di autorizzazione, il sistema verifica i permessi in ordine a partire dal primo metodo. Si continua a verificare i permessi procedendo col metodo successivo. Se l'utente viene autorizzato, la procedura si ferma e non vengono chiamati gli altri metodi di autorizzazione.
+
+## RBAC
+
+I ruoli vengono definiti in un file *yaml*, con le parole chiave specificate nel paragrafo [Specifiche API e Gruppi](#specifiche-api-e-gruppi):
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer
+rules:
+- apiGroups: [""] # "" indica il core API group
+  resources: ["pods"]
+  verbs: ["get", "list", "update", "delete", "create"]
+  resourceNames: ["frontend-pod"] # opzionale, specifico con precisione il nome dei pod
+- apiGroups: [""]
+  resources: ["ConfigMap"]
+  verbs: ["create"]
+```
+
+`resourceNames` può limitare con precisione il nome delle risorse alle quali si può accedere.
+È necessario poi associare il ruolo ad un utente con un *RoleBinding*:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: devuser-developer-binding
+subjects:
+  # SINGOLO UTENTE
+- kind: User
+  name: dev-user # is case sensitive
+  apiGroup: rbac.authorization.k8s.io
+  # GRUPPI
+- kind: Group
+  name: test-users
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: developer
+  apiGroup: rbac.authorization.k8s.io
+```
+
+*Nota*: Role e RoleBinding tengono anche conto del `namespace`. Se nessun `namespace` viene definito nei `metadata`, i permessi saranno validi per il default namespace.
+
+Per vedere i Role e RoleBindings:
+
+```bash
+kubectl get roles
+kubectl get rolebindings
+kubectl describe role <nome_ruolo>
+kubectl describe rolebindings <nome_role_binding>
+```
+
+### Verificare se un Utente può eseguire un Comando
+
+Se si è loggati nel cluster con un certo utente, e si vuole verificare se con questo utente si può eseguire un certo comando, utilizzare:
+
+```bash
+kubectl auth can-i <comando>
+# esempio:
+kubectl auth can-i delete nodes # => no
+```
+
+Per controllare i permessi di un altro utente senza loggarsi, usare l'opzione `--as`:
+
+```bash
+kubectl auth can-i <comando> --as dev-user
+# per selezionare un ben preciso namespace:
+kubectl auth can-i <comando> --as dev-user --namespace test
+```
+
+### Ruoli Cluster
+
+Non tutte le risorse sono inseribili in un namespace. Alcune risorse sono condivise in tutto il cluster, in particolare i Nodi e i PV. Per gestire i ruoli anche per le risorse *Cluster Scoped* è possibile utilizzare i *Cluster Roles* e i relativi *Cluster Role Bindings*:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-administrator
+rules:
+- apiGroups: [""] # "" core API
+  resources: ["nodes"]
+  verbs: ["get", "list", "delete", "create"]
+```
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-admin-role-binding
+subjects:
+- kind: User
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: cluster-administrator
+  apiGroup: rbac.authorization.k8s.io
+```
+
+*Nota*: i *Cluster Roles* possono essere usati anche per risorse che possono essere *namespaced* (come i Pod). In questo modo, si da l'accesso a quella risorsa su __tutti i namespace__.
+
+*Nota*: in un cluster possono esserci molti ruoli. Per contarli facilmente usare:
+
+```bash
+kubectl get clusterroles -A --no-headers | wc -l
+```
+
+## Account di Servizio
 
 1. [CKA Course - Security](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/07-Security)
 2. [PKI Certificates and Requirements](https://kubernetes.io/docs/setup/best-practices/certificates/)

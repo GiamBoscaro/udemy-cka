@@ -696,6 +696,8 @@ spec:
         image: nginx
 ```
 
+*Nota*: non tutti gli oggetti di Kubernetes possono essere assegnati ad un namespace. Alcuni oggetti sono *Cluster Scoped*, come i Nodi, Persistent Volumes, Cluster Roles e i Namespace stessi.
+
 ### Cambiare il Namespace di default
 
 Se si vuole cambiare il namespace che viene utilizzato di default da Kubernetes:
