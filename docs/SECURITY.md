@@ -691,5 +691,50 @@ kubectl get clusterroles -A --no-headers | wc -l
 
 ## Account di Servizio
 
+I *Service Account* sono utenze utilizzati da bot o servizi che devono accedere in modo autonomo al cluster per leggere alcune informazioni (es: metriche, salute del cluster).
+Per creare un nuovo service account:
+
+```bash
+kubectl create serviceaccount <nome_account>
+# elenco di tutti gli account di servizio
+kubectl get serviceaccount
+# dettagli sull'account di servizio
+kubectl describe serviceaccount <nome_account>
+```
+
+Quando si crea un *Service Account*, viene automaticamente creato un token utilizzato come *Bearer Token* nell'header di autenticazione. Il token è contenuto in un secret, che si può visualizzare con:
+
+```bash
+kubectl describe secret <nome_token_account> # es: account-token-kbbdm
+```
+
+Il nome del token è visibile sul `describe` del account di servizio.
+
+### Account di Servizio per i Servizi Interni al Cluster
+
+Se un servizio che necessita di leggere le API di Kubernetes è deployato all'interno del token, non è necessario generare un *Service Account* ed autenticarsi tramite token. Il secret può essere montato come volume sul Pod in modo che ne abbia visibilità.
+
+Quando un `namespace` viene creato, viene creato un `serviceaccount` di default che viene montato in __tutti__ i Pod nel `namespace` come volume (visibile con `kubectl describe pod <pod>`).
+
+*Nota*: il *Service Account* di default è molto limitato.
+
+Per aggiungere un diverso Service Account al Pod, utilizzare il campo `serviceAccountName`:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+    name: dashboard-pod
+spec:
+    containers:
+      - name: dashboard-pod
+        image: dashboard
+    serviceAccountName: dashboard-sa
+```
+
+*Nota*: non si puà cambiare il Service Account su un Pod senza prima cancellarlo. Si può invece modificare su un Deployment, che farà partire un rollout per la modifica.
+
+*Nota*: per evitare che il Pod monti automaticamente il Service Account di default, utilizzare il campo `automountServiceAccountToken: false`.
+
 1. [CKA Course - Security](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/07-Security)
 2. [PKI Certificates and Requirements](https://kubernetes.io/docs/setup/best-practices/certificates/)
