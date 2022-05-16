@@ -736,5 +736,51 @@ spec:
 
 *Nota*: per evitare che il Pod monti automaticamente il Service Account di default, utilizzare il campo `automountServiceAccountToken: false`.
 
+## Docker Registry Privato
+
+Per scarica in un Pod un'immagine Docker privata, è necessario inserire l'indirizzo completo dell'immagine nel registro, ma è anche ncessario effettuare l'accesso a questo registro. Le credenziali vengono salvate in uno specifico tipo di Secret chiamato `docker-registry`:
+
+```bash
+kubectl create secret docker-registry regcred \
+--docker-server=
+--docker-username=
+--docker-password=
+--docker-email=
+```
+
+che viene inserito nel manifest del Pod:
+
+```yaml
+# ...
+spec:
+    containers:
+    - name: nginx
+      image: # ...
+    imagePullSecrets:
+    - name: regcred
+```
+
+## Contesti di Sicurezza
+
+È possibile modificare i *Security Context* sia a livello del Container che dell'intero Pod. È ad esempio possibile modificare l'utente che esegue i processi del container, oppure aggiungere o togliere alcune *Capabilities* di Linux per esempio:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+    name: web-pod
+spec:
+    securityContext: # a livello di Pod
+        runAsUser: 1000
+    containers:
+      - name: ubuntu
+        image: ubuntu
+        # ...
+        securityContext: # a livello di singoli container
+            runAsUser: 1000
+            capabilities:
+                add: ["MAC_ADMIN"]
+```
+
 1. [CKA Course - Security](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/07-Security)
 2. [PKI Certificates and Requirements](https://kubernetes.io/docs/setup/best-practices/certificates/)
