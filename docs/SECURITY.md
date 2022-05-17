@@ -782,5 +782,117 @@ spec:
                 add: ["MAC_ADMIN"]
 ```
 
+## Policy del Network
+
+Di default, tutti i Pod in tutti i nodi possono comunicare tra di loro nel network interno del cluster. Molte volte però si vuole limitare le connessioni a quelle necessarie (ad esempio: il frontend non dovrebbe connettersi direttamente al database). Ciò può essere gestito attraverso le *Network Policies*, che permettono di limitare le connessioni in ingresso (*Ingress*) ed uscita (*Egress*) dai Pod:
+
+```yaml
+# db-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+ name: db-policy
+spec:
+  podSelector:
+    matchLabels:
+      role: db # tutti i Pod con role = db
+  policyTypes:
+  - Ingress # Ingress/Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          role: api-pod # db riceve solo da api-pod
+    ports:
+    - protocol: TCP # e solo alla porta 3306
+    port: 3306
+  - from:
+    - podSelector:
+    # ...
+    ports:
+    # ...
+```
+
+Quando si definisce un *Ingress*, automaticamente viene permesso l'invio della risposta al Pod che aveva fatto la richiesta, senza definire alcuna regola aggiuntiva. Ovviamente, le richieste in uscita dal Pod vengono ancora bloccate, e necessitano di una regola *Egress* perch+ la chiamata vada a buon fine.
+
+*Nota*: le Network Policies vengono gestite dal network di Kubernetes. Ci sono varie soluzioni per gestire il network, ma non tutte supportano le policies (es: *flannel* non le supporta). Le policy possono comunque essere create ma verranno ignorate.
+
+### Network Policy per un Namespace
+
+Di default, la Network Policy è applicata per __tutti__ i namespace. È necessario aggiungere il tag `namespaceSelector` per indicare anche il namespace dei Pod che si stanno selezionando:
+
+```yaml
+# ...
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          role: api-pod
+      namespaceSelector:
+        matchLabels:
+          role: prod
+# ...
+```
+
+Se si seleziona solo il namespace, e nessun Pod, la regola vale per qualsiasi Pod del namespace selezionato.
+
+### Network Policy per IP
+
+È possibile anche indicare un IP dal quale si possono ricevere chiamate:
+
+```yaml
+# ...
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          role: api-pod
+      # AND
+      namespaceSelector:
+        matchLabels:
+          role: prod
+    # OR
+    - ipBlock:
+        cidr: 192.168.5.10/32
+# ...
+```
+
+Le regole nella lista del tag `from` funzionano come un *OR*, per cui basta che una delle due regole sia valida per lasciar passare la richiesta. `podSelector` e `namespaceSelector` funzionano invece come un *AND*, quindi i due criteri devono essere entrambi rispettati.
+È possibile combinare in modo diverso le regole:
+
+```yaml
+# ...
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          role: api-pod
+    # OR
+    - namespaceSelector:
+        matchLabels:
+          role: prod
+    # OR
+    - ipBlock:
+        cidr: 192.168.5.10/32
+# ...
+```
+
+In questo caso tutte le regole sono separate, e solo una deve essere valita perchè la comunicazione sia possibile.
+
+### Testare la Network Policy
+
+È possibile elencare le Network Policies con:
+
+```bash
+kubectl get networkpolicies
+```
+
+ma controllare la configurazione della policy non assicura il suo corretto funzionamento. È possibile verificare il funzionamento con più precisione il funzionamento entrando nei container interessati e facendo dei test con alcune utility come `telnet` o `nslookup`:
+
+```bash
+telnet <ip_pod> <porta>
+kubectl exec <nome_pod> --restart=Never -it -- nslookup <ip_pod>:<porta>.<namespace>.pod.cluster.local
+```
+
 1. [CKA Course - Security](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/07-Security)
 2. [PKI Certificates and Requirements](https://kubernetes.io/docs/setup/best-practices/certificates/)
