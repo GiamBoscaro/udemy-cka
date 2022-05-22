@@ -130,4 +130,47 @@ spec:
         claimName: myclaim
 ```
 
+## Classi di Storage
+
+Quando viene creato un Persistent Volume, è necessario assegnarli uno Storage. Questo Storage deve già esistere prima di poter creare il volume. È possibile però utilizzare le Storage Class che crea dinamicamente Storage quando vengono richiesti dai volumi. La storage class viene configurata in base al provider. Ad esempio, se si utilizza Google Cloud Storage:
+
+```yaml
+# sc-definition.yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+   name: google-storage
+provisioner: kubernetes.io/gce-pd
+parameters:
+  # I parametri cambiano per ogni provider! Per Google:
+  type: pd-standard # pd-standard, pd-ssd
+  replication-type: none # none, regional-pd
+```
+
+A questo punto, __non servono più i Persistent Volumes__, in quanto la Storage Class lo creerà automaticamente quando una Claim lo richiede. Nella Claim va indicata la Storage Class:
+
+```yaml
+# pvc-definition.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: myclaim
+spec:
+  accessModes: [ "ReadWriteOnce" ]
+  storageClassName: google-storage
+  resources:
+   # quanto spazio è richiesto
+   requests:
+     storage: 500Mi
+```
+
+Modificando i parametri della Storage Class è possibile creare vere e proprie classi di storage (come ad esempio una class veloce con SSD e una più lenta con HDD).
+
+### Binding Mode
+
+Quando viene creata una Storage Class, si può specificare la `volumeBindingMode`, che indica quando la Storage Class andrà a creare il volume effettivamente:
+
+* `WaitForFirstConsumer`: quando viene eseguito il primo Pod che richiede un volume compatibile.
+* `Immediate`: appena la classe viene creata.
+
 1. [CKA Course - Storage](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/08-Storage)
