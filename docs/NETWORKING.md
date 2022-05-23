@@ -31,10 +31,26 @@ Per verificare il MAC Address di un nodo che non è quello in cui stiamo eseguen
 arp <nome_nodo>
 ```
 
-Ogni processo in esecuzione nel nodo può essere in ascolto in una porta. Per vedere a quali porte è assicato un processo:
+Ogni processo in esecuzione nel nodo può essere in ascolto in una porta. Per vedere a quali porte è assosciato un processo:
 
 ```bash
 netstat -nplt
+```
+
+Per conoscere esattamente tutte le caratteristiche della rete a cui il nodo è connesso, è possibile utilizzare `ipcalc` (da installare con `apt`):
+
+```bash
+ipcalc <ip> # es: ip nodo 10.49.70.3/24
+# OUTPUT:
+Address:   10.49.70.3           
+Netmask:   255.255.255.0 = 24   
+Wildcard:  0.0.0.255            
+=>
+Network:   10.49.70.0/24 # network dei nodi     
+HostMin:   10.49.70.1 # IP minimo
+HostMax:   10.49.70.254 # IP massimo
+Broadcast: 10.49.70.255         
+Hosts/Net: 254  
 ```
 
 ## Network dei Pod
@@ -160,6 +176,92 @@ kubectl logs -n kube-system weave-net-xjd5z -c weave
 ```bash
 kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')&env.IPALLOC_RANGE=10.50.0.0/16"
 ```
+
+## Network dei Servizi
+
+In genere nel cluster i Pod non comunicano direttamente ma attraverso i Service. I Pod infatti sono effimeri, e vengono creati e distrutti spesso. Il loro IP quindi non è stabile, cambia nel tempo. Un servizio ha un IP statico ed è un oggetto virtuale condiviso in tutto il cluster (non appartiene ad un nodo), e viene gestito da `kube-proxy`. Quando un servizio viene creato `kube-proxy` gli assegna un IP che inoltra tutte le chiamate ricevute (alla porta del servizio) ai Pod collegati al esso.
+
+Ci sono diversi modi in cui `kube-proxy` creare le regole di inoltro, dette *proxy modes*:
+
+* `userspace`: `kube-proxy` rimane in ascolto di connessioni. Quando una nuova connessione viene richiesta, il `kube-proxy` chiude la connessione originale e ne crea una nuova, che gestisce l'inoltro delle richieste. Tutto passa quindi per `kube-proxy`. I log vengono salvati su `/var/log/kube-proxy`.
+* `ipvs`: funziona come un load balancer, distribuendo le richieste ai servizi interni al cluster.
+* `iptables`: le richieste vengono inoltrate direttamente al servizio destinatario tramite le iptables del sistema operativo dell'host. È più veloce ma il debugging è più difficile in quando i log sono visibili solo nel kernel dell'host.
+
+La modalità può essere impostata durante la configurazione di `kube-proxy` usanto l'opzione `--proxy-mode`. Di default viene usata la modalità `iptables`.
+
+*Nota*: il range di IP dei Servizi e dei Pod __non__ devono essere sovrapposti. Per impostare i range di IP dei Servizi gestiti dal `kube-proxy` utilizzare l'opzione `--service-cluster-ip-range`.
+
+Le regole che vengono create dal `kube-proxy` per gestire i servizi sono visibili col comando:
+
+```bash
+iptables -L -t nat | grep <nome_servizio>
+```
+
+Per controllare i log del `kube-proxy` è possibile anche verificare i log all'interno del Pod:
+
+```bash
+kubectl logs <kube_proxy_pod> -n kube-system
+```
+
+## DNS in Kubernetes
+
+I Pod si connettono tra di loro in genere attraverso i Servizi. Possono connettersi tramite l'IP del servizio ma è anche possibile (e consigliato) connettersi semplicemente attraverso il nome del servizio. Per poter fare ciò, Kubernetes utilizza un DNS che risolve il nome del servizio col suo IP.
+
+Se la comunicazione avviene tra due namespace diversi, è necessario specificare il namespace oltre che al nome del servizio (`http://<servizio>.<namespace>`). In realtà tutti i servizi vengono poi raggrupati in un grande namespace detto `type` con valore `svc`. A loro volta, tutti i servizi (e anche tutti i Pod) vengono raggruppati nel namespace di root del cluster, `cluster.local`. L'uri completa per connettersi ad un servizio (*fully qualified domain*) sarebbe quindi:
+
+```bash
+http://<servizio>.<namespace>.svc.cluster.local
+```
+
+### DNS per i Pod
+
+Di default, Kubernetes non crea alcun DNS Record per i Pod. Se richiesto, però, è possibile abilitare questa funzione. Il DNS crea un record di questo tipo:
+
+```bash
+http://<pod>.<namespace>.pod.cluster.local
+```
+
+dove però `<pod>` __non__ è il nome del Pod, ma semplicemente l'IP del Pod dove i punti sono sostituiti con dei meno (es: *10.244.2.5* diventa *10-244-2-5*).
+
+### CoreDNS
+
+Kubernetes deploya un DNS server per il cluster (due Pod in replica sul Master), in cui vengono associati tutti i domini dei servizi ai loro IP. Ogni nodo dovrà sapere come raggiungere il server DNS per risolve i domini. Questo può essere fatto aggiungendo il server a `/etc/resolv.conf`:
+
+```bash
+# ...
+nameserver  10.96.0.10 # ip del DNS server
+# ...
+```
+
+La configurazione di CoreDNS si trova in `etch/coredns/Corefile`:
+
+```conf
+.:53 {
+    errors
+    health {
+        lameduck 5s
+    } # root domain del dell'intero cluster
+    kubernetes cluster.local in-addr.arpa ip6.arpa {
+       pods insecure # abilita i record DNS per i Pod
+       fallthrough in-addr.arpa ip6.arpa
+       ttl 30
+    }
+    prometheus :9153
+    forward . /etc/resolv.conf
+    cache 30
+    loop
+    reload
+}
+```
+
+Il file di configurazione consiste in vari plugin che CoreDNS esegue. Il plugin che gestire il DNS di Kubernetes è `kubernetes`. È possibile modificare o aggiungere diverse opzioni per modificare il comportamento del DNS (ad es: `pods` indica di creare i record DNS anche per i Pod).
+Questa configurazione viene iniettata nel Pod di CoreDNS tramite una ConfigMap, visibile con:
+
+```bash
+kubectl describe cm coredns -n kube-system
+```
+
+Quando viene creato il Pod di CoreDNS, viene anche creato il servizio per poterlo raggiungere. L'IP assegnato al servizio corrisponde al `nameserver` da inserire in `/etc/resolv.conf`. Questa modifica viene effettuata all'interno del Pod automaticamente da `kubelet` ogni volta che uno di essi viene creato.
 
 1. [CKA Course - Networking](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/09-Networking)
 2. [Weave Kubernetes Addo](https://www.weave.works/docs/net/latest/kubernetes/kube-addon/)
