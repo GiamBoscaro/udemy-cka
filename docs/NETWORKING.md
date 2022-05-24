@@ -263,5 +263,252 @@ kubectl describe cm coredns -n kube-system
 
 Quando viene creato il Pod di CoreDNS, viene anche creato il servizio per poterlo raggiungere. L'IP assegnato al servizio corrisponde al `nameserver` da inserire in `/etc/resolv.conf`. Questa modifica viene effettuata all'interno del Pod automaticamente da `kubelet` ogni volta che uno di essi viene creato.
 
+## Ingress
+
+Ingress è un componente di Kubernetes che rende più facile esporre in rete le applicazioni nel cluster. Funziona come un Load Balancer e Proxy, e permette anche di configurare l'SSL.
+Ingress si divide in due parti:
+
+* *Controller*: è il plugin che viene utilizzato da Ingress. Contiene anche il proxy ma non è l'unico componente che c'è al suo interno. Sono disponibili diversi proxy, tra cui *nginx* e *haproxy*.
+* *Resources*: è la configurazione dell'Ingress.
+
+*Nota*: un cluster Kubernetes, di default, __non__ contiene al suo interno i controller per Ingress.
+
+### Deploy di un Ingress Controller
+
+Il controller per gli Ingress viene eseguito con un Deployment:
+
+```yaml
+# nginx-controller.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: nginx-ingress
+  template:
+    metadata:
+      labels:
+        name: nginx-ingress
+    spec:
+      serviceAccountName: ingress-serviceaccount
+      containers:
+        - name: nginx-ingress-controller
+          image: quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.21.0
+          args:
+            - /nginx-ingress-controller
+            # la configurazione di nginx viene letta da una configmap
+            - --configmap=$(POD_NAMESPACE)/nginx-configuration
+          # alcune variabili d'ambiente aggiunte necessarie ad nginx per funzionare correttamente
+          # nel cluster. Vengono lette direttamente dai metadata del Pod che verrà deployato
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          # porte utilizzate da nginx
+          ports:
+            - name: http
+              containerPort: 80
+            - name: https
+              containerPort: 443
+```
+
+*Nota*: la versione di nginx utilizzata in Kubernetes è una versione modificata per funzionare correttamente nel cluster.
+
+La vera e propria configurazione di nginx (come ad esempio i certificati ssl, configurazione dei log ecc.) viene definita in una ConfigMap:
+
+```yaml
+# nginx-config.yaml
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: nginx-configuration
+```
+
+Il controller deve essere esposto all'esterno con un servizio:
+
+```yaml
+# nginx-controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    name: nginx-ingress
+```
+
+Il controller deve rimanere in ascolto di nuovi Ingress nel cluster, e quando uno viene eseguito deve modificare la sua configurazione per farlo funzionare correttamente. Il controller deve quindi avere accesso ad alcune risorse del cluster. Per questo motivo è necessario configurare un Service Account dedicato:
+
+```yaml
+# nginx-controller-sa.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+    name: nginx-ingress-serviceaccount
+```
+
+### Configurazione delle Ingress Resources
+
+L'Ingress Resources sono le vere e proprie regole per il routing delle richieste provenienti dall'esterno. La configurazione più semplice è la seguente:
+
+```yaml
+# ingress-resources.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+    name: ingress-mail
+spec:
+    backend:
+        service:
+            name: mail-service
+            port: 
+                number: 80
+```
+
+in cui tutte le richieste in arrivo vengono reindirizzate al Service indicato in `service` e alla porta `port`. Per gestire casi più complessi si utilizzano le *Ingress Rules*. Per inoltrare le chiamate a diverse path, ad esempio:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+    name: ingress-web
+spec:
+    rules:
+    - http:
+      paths:
+        # http://www.my-app.com/mail
+      - path: /mail
+        pathType: Prefix
+        service:
+            name: mail-service
+            port: 
+                number: 80
+        # http://www.my-app.com/web
+      - path: /web
+        pathType: Prefix
+        service:
+            name: web-service
+            port: 
+                number: 80
+```
+
+Quando questa configurazione viene eseguita, viene anche creato un *Default backend* (visibile con `kubectl describe ingress <nome_ingress>`). Questo è il Service a cui vengono rendirizizzate tutte le chiamate che non rispettano nessuna delle regole definite nell'Ingress. È necessario ricordarsi di deployare il Servizio come è definito nell'Ingress, in modo da avere un pagina da visualizzare di default.
+
+È possibile anche dividere il traffico in funzione del dominio da cui arriva la richiesta specificando l'`host`.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+    name: ingress-web
+spec:
+    rules:
+    - host: mail.my-app.com
+      http:
+        paths:
+        - backend:
+            service:
+                name: mail-service
+                port: 
+                    number: 80
+    - host: web.my-app.com
+      http:
+        paths:
+        - backend:
+            service:
+                name: web-service
+                port: 
+                    number: 80
+```
+
+È possibile combinare le regole di `path` con `host` per gestire tutti i casi possibili.
+
+### Creare Ingress col Metodo Imperativo
+
+Per creare velocemente un Ingress è possibile utilizzare il metodo imperativo:
+
+```bash
+kubectl create ingress <ingress-name> --rule="host/path=service:port"
+# esempio:
+kubectl create ingress my-ingress --rule="www.my-app.com/mail=mail-service:80"
+```
+
+### Annotations
+
+Ogni tipo di controller utilizzato per gli Ingress possiede delle opzioni specifiche in base al proxy che viene utilizzato al suo interno. Queste vengono dette *Annotations*. Una opzione utile in particolare è `rewrite`, che permette di modificare l'url della richiesta.
+
+Ad esempio, l'Ingress mette a disposizione un servizio all'url `http://my-app.com/mail/send`. Ingress reindirizza tutte le chiamate alla path `/mail/send` al servizio indicato (es: `mail-service`). Il servizio ricevere la richiesta con ancora la path `/mail` appesa alla fine, ma le API che espone direttamente a `/send` senza nulla prima e quindi va in errore. È necessario quindi riscrivere l'url al passaggio dall'Ingress, in modo da eliminare la path in più:
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: test-ingress
+  namespace: critical-space
+  annotations:
+    # questa regola sostituisce tutte le path nel dominio con /
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - http:
+    paths:
+    - path: /pay
+      pathType: Prefix
+      backend:
+        service:
+            name: pay-service
+            port: 
+                number: 80
+```
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: test-ingress
+  namespace: critical-space
+  annotations:
+    # questa rewrite elimina la prima path ($1) dall'url
+    # es: 
+    # rewrite.bar.com/something => rewrite.bar.com/
+    # rewrite.bar.com/something/ => rewrite.bar.com/
+    # rewrite.bar.com/something/new => rewrite.bar.com/new
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+    - host: rewrite.bar.com
+        http:
+        paths:
+        - backend:
+            service:
+                name: http-svc
+                port: 
+                    number: 80
+            # regexp per isolare la prima path da tutte le altre
+            path: /something(/|$)(.*)
+            pathType: Prefix
+```
+
+*Note*: queste regole sono valide sono per Nginx. Vi saranno altre regole simili per gli altri proxy. Vari esempi sui comandi disponibili per nginx sono visibili nella [documentazione del controller](https://kubernetes.github.io/ingress-nginx/examples/).
+
 1. [CKA Course - Networking](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/09-Networking)
 2. [Weave Kubernetes Addo](https://www.weave.works/docs/net/latest/kubernetes/kube-addon/)
+3. [Nginx Ingress Controller Examples](https://kubernetes.github.io/ingress-nginx/examples/)

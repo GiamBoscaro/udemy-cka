@@ -536,7 +536,7 @@ kubectl apply -f service-definition.yaml
 si può anche creare un servizio andando ad esporre un Deployment col comando:
 
 ```bash
-kubect expose deployment <nome_deployment> --port <porta> --type LoadBalancer --name <nome_servizio>
+kubectl expose deployment <nome_deployment> --port <porta> --type LoadBalancer --name <nome_servizio>
 ```
 
 ### NodePort
