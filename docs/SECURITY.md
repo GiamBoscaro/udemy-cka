@@ -762,25 +762,60 @@ spec:
 
 ## Contesti di Sicurezza
 
+### Contesti di Sicurezza in Docker
+
+Tutti i processi all'interno di container Docker vengono eseguiti come root. L'utente di root all'interno del container __è diverso__ da quello dell'host. In ogni caso, non sempre si vuole eseguire i processi con root, quindi si può specificare l'utente utilizzato all'interno dei container con:
+
+```bash
+docker run --user=1000 ubuntu
+```
+
+oppure nel Dockerfile:
+
+```dockerfile
+FROM ubuntu:latest
+# ...
+USER 1000
+# ...
+```
+
+In aggiunta, si possono aggiungere e rimuovere le *Linux Capabilities* dell'utente, cioè le funzionalità avanzate del kernel di Linux, che possono avere forti ripercussioni sul sistema se usate incorrettamente.
+Per modificare le *Capabilities*:
+
+```bash
+# Aggiungere un capability
+docker run --cap-add MAC_ADMIN ubuntu
+# Rimuovere un capability
+docker run --cap-drop MAC_ADMIN ubuntu
+# Aggiungere tutte le capabilities, massimi privilegi
+docker run --privileged ubuntu
+```
+
+*Nota*: la lista di tutte le *Capabilities* di Linux sono presenti in `/usr/include/linux/capability.h`.
+
+### Contesti di Sicurezza in Kubernetes
+
 È possibile modificare i *Security Context* sia a livello del Container che dell'intero Pod. È ad esempio possibile modificare l'utente che esegue i processi del container, oppure aggiungere o togliere alcune *Capabilities* di Linux per esempio:
 
 ```yaml
 apiVersion: v1
 kind: Pod
 metadata:
-    name: web-pod
+  name: web-pod
 spec:
-    securityContext: # a livello di Pod
-        runAsUser: 1000
-    containers:
-      - name: ubuntu
-        image: ubuntu
-        # ...
-        securityContext: # a livello di singoli container
-            runAsUser: 1000
-            capabilities:
-                add: ["MAC_ADMIN"]
+  securityContext: # a livello di Pod
+    runAsUser: 1000
+  containers:
+  - name: ubuntu
+    image: ubuntu
+    # ...
+    securityContext: # a livello di singoli container
+      runAsUser: 1000
+      capabilities:
+        add: ["MAC_ADMIN"]
 ```
+
+La configurazione applicata al Pod viene automaticamente letta anche da __tutti__ i container all'interno del Pod. Se si configura anche un `securityContext` dello specifico container, questo ha la priorità su quello del Pod.
 
 ## Policy del Network
 
