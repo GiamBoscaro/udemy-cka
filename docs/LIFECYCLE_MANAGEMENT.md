@@ -324,7 +324,7 @@ Per rendere più sicuro il cluster, è possibile seguire queste linee guida:
 Certe volte è utile avere più container nello stesso Pod, che possano comunicare facilmente e che vengano sempre creati e distrutti assieme. I motivi per avere più container nello stesso Pod sono tra i più vari, ma vi sono tre Design Pattern utilizzati principalmente:
 
 * *Side Car*: un container per il servizio e uno o più container *helper* che hanno senso di esistere solo quando il servizio primario è attivo. Gli *helper* potrebbero essere dei servizi di loggin o di sincronizzazione. I container funzionano in parallelo.
-* *Adapter*: Un servizio primario e un container adattatore, per standardizzare o convertire i dati in input e output del Pod. Utile anche per dei servizi che fanno aggregazioni. I container funzionano in seriale, tutti i dati passano dall'adapter.
+* *Adapter*: Un servizio primario e un container adattatore, per standardizzare o convertire i dati in input e output del Pod. Utile anche per dei servizi che fanno aggregazioni. I container funzionano in seriale, tutti i dati passano dall'adapter. Potrebbe ad esempio essere utile per convertire i log prodotti dal container in un formato generico compatibile con il servizio centralizzato di logging.
 * *Ambassador*: un container del servizio primario e un container *ambassador*. L'ambasciatore funziona come un proxy e permette al servizio primario di connettersi a diversi endpoint in funzione dell'ambiente in cui si sta operando. Per cui, nel servizio primario l'endpoint è sempre lo stesso, ed è il container ambasciatore che cambia il puntamento in funzione dell'ambiente. I servizi funzionano in seriale. Tutti i dati passano dall'ambasciatore.
 
 ## Init Containers
