@@ -1,6 +1,6 @@
-# Certified Kubernetes Administrator (CKA)
+# Certified Kubernetes Administrator (CKA) and Application Developer (CKAD)
 
-Exercises from [Certified Kubernetes Administrator (CKA) with Practice Tests](https://www.udemy.com/course/certified-kubernetes-administrator-with-practice-tests/)
+Documents and Notes from [Certified Kubernetes Administrator (CKA) with Practice Tests](https://www.udemy.com/course/certified-kubernetes-administrator-with-practice-tests/) and [Certified Kubernetes Application Developer (CKAD) with Tests](https://www.udemy.com/course/certified-kubernetes-application-developer/)
 
 <br/>
 
