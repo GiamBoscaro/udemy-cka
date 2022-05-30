@@ -230,13 +230,13 @@ kind: Pod
 metadata:
 # ...
 spec:
-    containers:
-      - name: my-app
-        # ...
-    resources:
-        requests:
-            memory: "1Gi"
-            cpu: 1
+  containers:
+    - name: my-app
+      # ...
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: 1
 ```
 
 * *CPU*: 1 CPU corrisponde ad un *Hyperthread*, oppure una *vCPU* (simile ad un core). La definizione varia in base al cloud provider utilizzato. Il valore minimo applicabile è `1m` (`100m` corrispondono a 0.1 CPU).
@@ -253,13 +253,13 @@ kind: Pod
 metadata:
 # ...
 spec:
-    containers:
-      - name: my-app
-        # ...
-    resources:
-        limits:
-            memory: "2Gi"
-            cpu: 2
+  containers:
+    - name: my-app
+      # ...
+  resources:
+    limits:
+      memory: "2Gi"
+      cpu: 2
 ```
 
 Se un Pod cerca di utilizzare più CPU del previsto, la CPU va in throttling ma il Pod rimane in esecuzione. Se invece il Pod utilizza più memoria del previsto per un certo lasso di tempo, verrà terminato.
@@ -275,14 +275,14 @@ I limiti sono assegnati al Pod, per cui nel caso di Pod con molteplici container
 apiVersion: v1
 kind: LimitRange
 metadata:
-    name: mem-limit-range
+  name: mem-limit-range
 spec:
-    limits:
-      - default:
-        memory: 512Mi
-        defaultRequest:
-            memory: 256Mi
-        type: Container
+  limits:
+  - default:
+    memory: 512Mi
+    defaultRequest:
+      memory: 256Mi
+    type: Container
 ```
 
 ```yaml
