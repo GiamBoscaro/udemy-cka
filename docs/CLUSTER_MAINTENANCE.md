@@ -4,7 +4,7 @@
 
 Se un nodo diventa irraggiungibile, i Pod al suo interno non sono più utilizzabili. Se fanno parte di un Replica Set, il servizio non dovrebbe essere compromesso, perchè ci sono altre repliche in altri nodi. Se invece il Pod era unico, il servizio potrebbe non funzionare e il Pod deve essere rischedulato in un altro nodo. Il cluster aspetta 5 minuti prima di segnare il nodo come irraggiungibile e schedulare i Pod in un altro nodo. È possibile cambiare questo timeout nel `kube-controller-manager`:
 
-```bash
+```shell
 kube-controller-manager --pod-eviction-timeout=5mOs
 ```
 
@@ -12,7 +12,7 @@ Potrebbe essere però necessario spegnere o riavviare un nodo per effettuare ope
 
 1. `drain` dei Pod: tutti i Pod in esecuzione nel nodo vengono spenti e rischedulati in altri nodi. Inoltre, il nodo viene segnato come *cordoned*, e quindi nessun Pod può più venire schedulato nel nodo. Questo permette di operare nel nodo in tutta sicurezza, in quanto nessun servizio è in esecuzione su di esso.
 
-```bash
+```shell
 kubectl drain <nome-nodo>
 ```
 
@@ -22,14 +22,14 @@ Il `drain` potrebbe andare in errore se ci sono Daemon Sets attivi nel nodo (com
 
 2. Una volta completate le operazioni, anche dopo un riavvio del nodo, esso continua a rimanere *cordoned*. Per poter permettere nuovamente la schedulazione:
 
-```bash
+```shell
 kubectl uncordon <nome-nodo>
 ```
 
 A questo punto, il nodo è di nuovo aperto per la schedulazione, ma i Pod che erano presenti precedentemente non verranno automaticamente riportati alla posizione originale.
 Potrebbe essere utile anche rendere un nodo *cordoned* senza fare un *drain*. Per fare cioò
 
-```bash
+```shell
 kubectl cordon <nome-nodo>
 ```
 
@@ -61,7 +61,7 @@ Il procedimento per aggiornare il cluster è il seguente:
 
 Per mostrare gli aggiornamenti disponibili:
 
-```bash
+```shell
 kubeadm upgrade plan
 ```
 
@@ -71,7 +71,7 @@ Per procedere all'aggiornamento è necessario aggiornare prima `kubeadm`, sempre
 
 1. Aggiornare `kubeadm` del *Master* alla minor successiva:
 
-```bash
+```shell
 apt-get upgrade -y kubeadm=1.12.0-00
 ```
 
@@ -79,7 +79,7 @@ apt-get upgrade -y kubeadm=1.12.0-00
 
 *Nota*: per conoscere l'esatta versione da indicare, utilizzare il comando:
 
-```bash
+```shell
 apt update
 apt-cache madison kubeadm
 ```
@@ -88,20 +88,20 @@ Il comando elenca tutte le versioni disponibili di `kubeadm`. Selezionare l'ulti
 
 2. Aggiornare il cluster alla minor successiva, uguale alla versione di `kubeadm`:
 
-```bash
+```shell
 kubeadm upgrade apply 1.12.0
 ```
 
 3. Aggiornare `kubelet` in ogni nodo. Se nel *Master* è presente `kubelet`, aggiornare prima questo:
 
-```bash
+```shell
 apt-get upgrade -y kubelet=1.12.0-00
 systemctl restart kubelet
 ```
 
 Aggiornare poi i *Worker Nodes*, uno alla volta, usando `drain`. I *Worker Node* necessitano anche dell'aggiornamento di `kubeadm`:
 
-```bash
+```shell
 kubectl drain <nome-nodo>
 
 apt-get upgrade -y kubeadm=1.12.0-00
@@ -123,7 +123,7 @@ Non è detto però che tutto il cluster sia stato creato in modo dichiarativo, a
 
 Se si vuole fare un backup del cluster, si può impostare nel *cron* uno script che esegue:
 
-```bash
+```shell
 kubectl get all --all-namespaces -o yaml > all-deploy-services.yaml
 ```
 
@@ -135,7 +135,7 @@ kubectl get all --all-namespaces -o yaml > all-deploy-services.yaml
 
 `etcd` cluster contiene tutte le risorse e lo stato del cluster. Al posto di fare il backup delle risorse in formato *yaml*, è possibile fare uno snapshot di tutto `etcd` database:
 
-```bash
+```shell
 etcdctl snapshot save snapshot.db
 # per verificare lo stato dello snapshot
 etcdctl snapshot status snapshot.db
@@ -143,7 +143,7 @@ etcdctl snapshot status snapshot.db
 
 *Nota*: ricordarsi si specificare la versione dell'API di `etcd` prima dell'esecuzione di un qualsiasi comando:
 
-```bash
+```shell
 export ETCDCTL_API=3
 ```
 
@@ -151,14 +151,14 @@ export ETCDCTL_API=3
 
 Per ripristinare da uno snapshot:
 
-```bash
+```shell
 service kube-apiserver stop
 etcdctl snapshot restore snapshot.db --data-dir /var/lib/etcd-from-backup
 ```
 
 Nel ripristino, `etcd` inizializza una nuova configurazione del cluster, quindi viene creata una nuova cartella per la configurazione (`data-dir`). È necessario indicare al servizio `etcd.service` la nuova cartella. Una volta riconfigurato il servizio, eseguire:
 
-```bash
+```shell
 systemctl daemon-reload
 service etcd restart
 service kube-apiserver start
@@ -168,7 +168,7 @@ Il ripristino dovrebbe ora essere completo.
 
 *Nota*: per tutti i comandi `etcdctl` è necessario specificare delle opzioni per l'autenticazione quando l'`etcd` ha il TLS abilitato:
 
-```bash
+```shell
 ETCDCTL_API=3 etcdctl \
     snapshot save snapshot.db \
     --endpoints=https://127.0.0.1:2379 \
@@ -199,7 +199,7 @@ Una volta modificato il manifest, essendo `etcd` un DaemonSet, il *Master Node* 
 
 Si può effettuare il backup e ripristino dell'`etcd` da una qualsiasi posizione, l'importante è specificare l'endpoint e i certificati necessari all'esecuzione di `etcdctl`.
 
-```bash
+```shell
 ETCDCTL_API=3 etcdctl \
     snapshot restore snapshot.db \
     --endpoints=https://<master_node>:2379 \
@@ -215,7 +215,7 @@ ETCDCTL_API=3 etcdctl \
 
 Per sapere con sicurezza quali valori inserire nel comando, è consigliato controllare il manifest del Pod che esegue `etcd` nel *Master Node*:
 
-```bash
+```shell
 kubectl get pod etcd-controlplane -n kube-system -o yaml
 ```
 

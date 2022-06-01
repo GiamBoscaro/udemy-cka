@@ -76,7 +76,7 @@ Le possibili `accessModes` sono:
 
 Per elencare tutti i persistent volume presenti:
 
-```bash
+```shell
 kubectl get persistentvolume
 ```
 
@@ -104,7 +104,7 @@ Kubernetes cercherà di assegnare la claim al volume più vicino alle caratteris
 
 Per elencare le claim presenti:
 
-```bash
+```shell
 kubectl get persistentvolumeclaim
 ```
 

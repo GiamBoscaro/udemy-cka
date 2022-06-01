@@ -6,14 +6,14 @@ Ogni volta che un Deployment viene applicato al cluster (`kubectl apply`), viene
 
 Per vedere lo stato di un rollout in esecuzione:
 
-```bash
+```shell
 kubectl rollout status deployment/<nome-deployment>
 ```
 
 Questo comando mostrerà tutti i Pod e le repliche che sono state già aggiornate e quelle in attesa di aggiornamento.
 Per vedere invece lo storico di tutte le revisioni effettuate ad un deployment:
 
-```bash
+```shell
 kubectl rollout history deployment/<nome-deployment>
 ```
 
@@ -61,7 +61,7 @@ Se viene richiesto un rollback, il nuovo Replica Set viene scalato a zero replic
 
 Per effettuare un rollout:
 
-```bash
+```shell
 kubectl rollout undo deployment/<nome-deployment>
 ```
 
@@ -89,7 +89,7 @@ CMD ["start"]
 
 Alla creazione del container è possibile indicare un argomento che verrà appeso all'`ENTRYPOINT`. Se non è presente alcun argomento, verrà utilizzato il `CMD` di default.
 
-```bash
+```shell
 # esegue il default: npm start
 docker run --name my-container
 # esegue l'entrypoint npm con argomento debug: npm debug
@@ -172,14 +172,14 @@ Una Config Map permette di raccogliere in un manifest molte variabili d'ambiente
 
 Per creare una Config Map in modo imperativo:
 
-```bash
+```shell
 kubectl create configmap <nome-config> --from-literal=KEY=value \       
   --from-literal=KEY2=value2
 ```
 
 per ogni variabile d'ambiente, è necessario specificare l'opzione `--from-literal`. Questo diventa complesso per una mappa con molte variabili, per cui è anche possibile leggere le varibili da un file `.env` e simili:
 
-```bash
+```shell
 kubectl create configmap <nome-config> --from-file=path/to/.env
 ```
 
@@ -236,14 +236,14 @@ volumes:
 
 Un Secret è una Config Map utilizzata per salvare variabili sensibili, come password e segreti. Come per le Config Map, è possibile creare un Secret da CLI elencando tutte le variabili al suo interno:
 
-```bash
+```shell
 kubectl create secret generic <nome-secret> --from-literal=KEY=value \       
   --from-literal=KEY2=value2
 ```
 
 oppure leggendole da un file:
 
-```bash
+```shell
 kubectl create secret generic <nome-secret> --from-file=path/to/.env
 ```
 
@@ -264,7 +264,7 @@ data:
 
 per codificare in `base64`  una stringa:
 
-```bash
+```shell
 echo -n 'password' | base64
 # per decodificare
 echo -n 'password' | base64 --decode

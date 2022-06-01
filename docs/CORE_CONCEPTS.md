@@ -6,14 +6,14 @@ Key-Value Store per sistemi distribuiti. Contiene informazioni su Nodi, Pods, Se
 
 Leggere e scrivere:
 
-```bash
+```shell
 ./etcdctl set key1 value1
 ./etcdctl get key1
 ```
 
 Elenco di tutte le chiavi presenti:
 
-```bash
+```shell
 etcdctl get / --prefix -keys-only
 ```
 
@@ -22,11 +22,11 @@ etcdctl get / --prefix -keys-only
 Ci sono due versioni supportate delle API di `etcd`, la versione 2 e 3. È necessario impostare correttamente la versione nelle variabili d'ambiente essendo i comandi molto diversi tra di loro.
 Per impostare la versione:
 
-```bash
+```shell
 export ETCDCTL_API=3
 ```
 
-```bash
+```shell
 # Versione 2
 etcdctl backup
 etcdctl cluster-health
@@ -47,7 +47,7 @@ etcdctl put
 
 Installazione ed esecuzione:
 
-```bash
+```shell
 wget -q --https-only "https://github.com/etcd-io/etcd/releases/download/v3.3.11/etcd-v3.3.11-linux-amd64.tar.gz"
 tar xvzf etcd-v3.3.11-linux-amd64.tar.gz
 ./etcd
@@ -57,7 +57,7 @@ Configurare ed aggiornare etcd: <https://kubernetes.io/docs/tasks/administer-clu
 
 Le opzioni più importanti per la configurazione sono:
 
-```bash
+```shell
 # Url a cui è raggiungibile etcd
 --advertise-client-urls https://${INTERNAL_IP}:2379
 ```
@@ -67,13 +67,13 @@ Le opzioni più importanti per la configurazione sono:
 `kubeadm` istanzia un Pod che esegue `etcd` nel namespace `kube-system`.
 Il Pod si chiamerà `etcd-master` e si può vedere chiamando:
 
-```bash
+```shell
 kubectl get pods -n kube-system
 ```
 
 I comandi posso essere inviati al Pod con:
 
-```bash
+```shell
 kubectl exec etcd-master -n kube-system etcdctl <comando>
 ```
 
@@ -81,7 +81,7 @@ kubectl exec etcd-master -n kube-system etcdctl <comando>
 
 Per configurare un cluster di `etcd` è necessario impostare i seguenti parametri:
 
-```bash
+```shell
 # Url delle varie istanze etcd nel cluster
 --initial-cluster controller-0=https://${CONTROLLER_IP}:2380,controller-1=https://${CONTROLLER_IP}:2380,#...
 ```
@@ -97,13 +97,13 @@ Ogni comando inviato via `kubectl` passa dal Kube-API Server. Le sue API possono
 
 Installazione:
 
-```bash
+```shell
 wget https://storage.googleapis.com/kubernetes-release/release/v1.13.0/bin/linux/amd64/kube-apiserver
 ```
 
 Le opzioni più importanti per la configurazione sono:
 
-```bash
+```shell
 # Elenco dei server ETCD
 --etcd-servers=https://${CONTROLLER_IP}:2379,https://${CONTROLLER_IP}:2379,#...
 ```
@@ -111,7 +111,7 @@ Le opzioni più importanti per la configurazione sono:
 ed inoltre altre impostazioni varie per i certificati SSL.
 La configurazione attuale dell'API Server è visibile col comando:
 
-```bash
+```shell
 cat /etc/systemd/system/kube-apiserver.service
 ```
 
@@ -120,7 +120,7 @@ cat /etc/systemd/system/kube-apiserver.service
 `kubeadm` istanzia un Pod che esegue `kube-apiserver` nel namespace `kube-system`.
 Il Pod si chiamerà `kube-apiserver-master` e si può vedere chiamando:
 
-```bash
+```shell
 kubectl get pods -n kube-system
 ```
 
@@ -134,13 +134,13 @@ Gestisce vari controller, che monitorano lo stato dei componenti del sistema e c
 
 Installazione:
 
-```bash
+```shell
 wget https://storage.googleapis.com/kubernetes-release/release/v1.13.0/bin/linux/amd64/kube-controller-manager
 ```
 
 Le opzioni più importanti per la configurazione sono:
 
-```bash
+```shell
 # Ogni quanti secondi viene verificato lo stato dei nodi
 --node-monitor-period=5s
 # Dopo quanti secondi un nodo viene considerato unreachable se l'health check fallisce
@@ -153,7 +153,7 @@ Le opzioni più importanti per la configurazione sono:
 
 La configurazione attuale del Kube Controller Manager è visibile col comando:
 
-```bash
+```shell
 cat /etc/systemd/system/kube-controller-manager.service
 ```
 
@@ -162,7 +162,7 @@ cat /etc/systemd/system/kube-controller-manager.service
 `kubeadm` istanzia un Pod che esegue `kube-controller-manager` nel namespace `kube-system`.
 Il Pod si chiamerà `kube-controller-manager-master` e si può vedere chiamando:
 
-```bash
+```shell
 kubectl get pods -n kube-system
 ```
 
@@ -177,20 +177,20 @@ Decide a che Nodo assegnare i Pod, in funzione delle risorse richieste, risorse 
 
 Installazione:
 
-```bash
+```shell
 wget https://storage.googleapis.com/kubernetes-release/release/v1.13.0/bin/linux/amd64/kube-scheduler
 ```
 
 Le opzioni più importanti per la configurazione sono:
 
-```bash
+```shell
 # Path della configurazione dello scheduler
 --config=path/to/kube-scheduler.yaml
 ```
 
 La configurazione attuale del Kube Scheduler è visibile col comando:
 
-```bash
+```shell
 cat /etc/systemd/system/kube-scheduler.service
 ```
 
@@ -199,7 +199,7 @@ cat /etc/systemd/system/kube-scheduler.service
 `kubeadm` istanzia un Pod che esegue `kube-scheduler` nel namespace `kube-system`.
 Il Pod si chiamerà `kube-scheduler-master` e si può vedere chiamando:
 
-```bash
+```shell
 kubectl get pods -n kube-system
 ```
 
@@ -213,13 +213,13 @@ Gestisce le operazioni nei Nodi, come la registrazione dei Nodi nel Cluster, il 
 
 Installazione:
 
-```bash
+```shell
 wget https://storage.googleapis.com/kubernetes-release/release/v1.13.0/bin/linux/amd64/kubelet
 ```
 
 La configurazione attuale del Kube Scheduler è visibile col comando:
 
-```bash
+```shell
 cat /etc/systemd/system/kubelet.service
 ```
 
@@ -235,13 +235,13 @@ Permette ai tutti i Pod di comunicare tra di loro. Ogni volta che un servizio vi
 
 Installazione:
 
-```bash
+```shell
 wget https://storage.googleapis.com/kubernetes-release/release/v1.13.0/bin/linux/amd64/kube-proxy
 ```
 
 La configurazione attuale del Kube Scheduler è visibile col comando:
 
-```bash
+```shell
 cat /etc/systemd/system/kube-proxy.service
 ```
 
@@ -250,7 +250,7 @@ cat /etc/systemd/system/kube-proxy.service
 `kubeadm` istanzia un Pod per ogni nodo che esegue `kube-proxy` nel namespace `kube-system`.
 Il Pod si chiamerà `kube-proxy-<id>` e si può vedere chiamando:
 
-```bash
+```shell
 kubectl get pods -n kube-system
 ```
 
@@ -262,7 +262,7 @@ I Pod vengono distrutti e creati ad ogni evenienza, cambiando il loro indirizzo 
 
 Per vedere la lista dei Pod presenti nel cluster:
 
-```bash
+```shell
 kubectl get pods
 # per avere informazioni più estese
 kubectl get pods -o wide
@@ -270,7 +270,7 @@ kubectl get pods -o wide
 
 Per avere dettagli e informazioni varie sul Pod appena creato:
 
-```bash
+```shell
 kubectl describe pod <nome_pod> # in questo caso sarebbe myapp-pod
 ```
 
@@ -278,13 +278,13 @@ kubectl describe pod <nome_pod> # in questo caso sarebbe myapp-pod
 
 Un Pod può essere creato e deployato dal terminale eseguendo:
 
-```bash
+```shell
 kubectl run <nome_pod> --image <path/to/docker_image>
 ```
 
 e per cancellarlo:
 
-```bash
+```shell
 kubectl delete <nome_pod>
 ```
 
@@ -315,7 +315,7 @@ spec:
 
 Per eseguire il deploy:
 
-```bash
+```shell
 kubectl apply -f pod-definition.yaml
 # oppure
 kubectl create -f pod-definition.yaml # create va in errore se il Pod esiste già
@@ -325,7 +325,7 @@ kubectl create -f pod-definition.yaml # create va in errore se il Pod esiste gi�
 
 Se un Pod è in esecuzione, sono pochissime le proprietà che possono essere cambiate (es: l'immagine del container). È quindi necessario cancellare e ricreare il Pod. È utile quindi generare il file *yaml* del Pod attualmente in esecuzione, in modo da fare le modifiche necessarie e deployarlo facilmente:
 
-```bash
+```shell
 kubectl get pod <nome_pod> -o yaml > pod-definition.yaml
 ```
 
@@ -338,13 +338,13 @@ Il Replication Controller è in realtà la vecchia implementazione del controlle
 
 Per vedere i Replication Controller in esecuzione:
 
-```bash
+```shell
 kubectl get replicationcontroller
 ```
 
 mentre per i ReplicaSet:
 
-```bash
+```shell
 kubectl get replicaset
 ```
 
@@ -379,7 +379,7 @@ spec:
 
 Per eseguire il deploy:
 
-```bash
+```shell
 kubectl apply -f rc-definition.yaml
 ```
 
@@ -420,7 +420,7 @@ In realtà anche Replication Controller permette di inserire la tag `selector`, 
 
 Per eseguire il deploy:
 
-```bash
+```shell
 kubectl apply -f replicaset-definition.yaml
 ```
 
@@ -428,7 +428,7 @@ kubectl apply -f replicaset-definition.yaml
 
 Ci sono due modi per aumentare (o diminuire) le repliche di un Pod. È possibile modificare il file *yaml* e deployarlo:
 
-```bash
+```shell
 kubectl replace -f replicaset-definition.yaml
 # oppure
 kubectl apply -f replicaset-definition.yaml
@@ -436,14 +436,14 @@ kubectl apply -f replicaset-definition.yaml
 
 In alternativa è possibile usare il comando `scale`:
 
-```bash
+```shell
 kubectl scale --replicas=6 -f replicaset-definition.yaml
 ```
 
 che andrà anche ad aggiornare automaticamente il file.
 Se non si conosce la posizione del file *yaml*, è possibile scalare anche con:
 
-```bash
+```shell
 kubectl scale --replicas=6 replicaset <nome_replicaset>
 ```
 
@@ -454,13 +454,13 @@ kubectl scale --replicas=6 replicaset <nome_replicaset>
 Un Deployment permette di eseguire varie repliche di un Pod, come un ReplicaSet. Ha però anche molte funzionalità in più, come ad esempio la possibilità di aggiornare facilmente le immagini dei container facendo dei *rollout* e dei *rollback* in caso di errore. Il Deployment è l'oggetto principale per eseguire Pods di applicazioni __Stateless__.
 Un Deployment crea automaticamente il suo ReplicaSet, e il ReplicaSet crea poi i Pod. Per vedere tutti gli oggetti creati da Kubernetes:
 
-```bash
+```shell
 kubectl get all
 ```
 
 mentre per vedere solo i deployment:
 
-```bash
+```shell
 kubectl get deployments
 ```
 
@@ -499,13 +499,13 @@ spec:
 Come si nota è molto simile al ReplicaSet.
 Per eseguire il deploy:
 
-```bash
+```shell
 kubectl apply -f deployment-definition.yaml
 ```
 
 È possibile aggiornare l'immagine di un deployment in esecuzione direttamente da cli usando:
 
-```bash
+```shell
 kubectl set image deployment <nome_deployment> nginx=nginx:1.18
 ```
 
@@ -513,7 +513,7 @@ kubectl set image deployment <nome_deployment> nginx=nginx:1.18
 
 Potrebbe essere complicato creare da zero un file *yaml* da terminale. È possibile però auto generare le specifiche *yaml* eseguendo una `dry-run` con `kubectl create`, ad esempio:
 
-```bash
+```shell
 kubectl create deployment --image=nginx nginx --dry-run=client -o yaml > nginx-deployment.yaml
 ```
 
@@ -523,19 +523,19 @@ Permette di connettere i Pod tra di loro e con l'esterno.
 
 Per vedere i servizi in esecuzione nel cluster:
 
-```bash
+```shell
 kubectl get services
 ```
 
 I servizi possono essere contattati sia per nome che per IP. Una volta definite le specifiche *yaml*, creare il servizio con:
 
-```bash
+```shell
 kubectl apply -f service-definition.yaml
 ```
 
 si può anche creare un servizio andando ad esporre un Deployment col comando:
 
-```bash
+```shell
 kubectl expose deployment <nome_deployment> --port <porta> --type LoadBalancer --name <nome_servizio>
 ```
 
@@ -634,13 +634,13 @@ Di default, Kubernetes assegna tutti gli oggetti al namespace *default*. Inoltre
 
 Tutti i comandi di `kubectl` mostrano gli oggetti del *default* namespace. Per specificare un namespace diverso, utilizzare l'opzione `--namespace` o `-n`:
 
-```bash
+```shell
 kubectl get pods --namespace <nome_namespace>
 ```
 
 Per vedere invece gli oggetti di  tutti i namespace:
 
-```bash
+```shell
 kubectl get pods --all-namespaces
 ```
 
@@ -648,7 +648,7 @@ kubectl get pods --all-namespaces
 
 Per creare un namespace direttamente da cli:
 
-```bash
+```shell
 kubectl create namespace <nome_namespace>
 ```
 
@@ -666,7 +666,7 @@ metadata:
 
 e deployarlo nel cluster con:
 
-```bash
+```shell
 kubectl create -f namespace-dev.yaml
 ```
 
@@ -674,7 +674,7 @@ kubectl create -f namespace-dev.yaml
 
 Per creare un oggetto in un preciso namespace, utilizzare:
 
-```bash
+```shell
 kubectl create -f spec.yaml --namespace <nome_namespace>
 ```
 
@@ -702,7 +702,7 @@ spec:
 
 Se si vuole cambiare il namespace che viene utilizzato di default da Kubernetes:
 
-```bash
+```shell
 kubectl config set-context $(kubectl config current-context) --namespace=<nome_namespace>
 ```
 
@@ -730,7 +730,7 @@ spec:
 
 e deployarlo con:
 
-```bash
+```shell
 kubectl apply -f compute-quota.yaml
 ```
 
@@ -744,7 +744,7 @@ Sono i due diversi approcci per gestire il cluster e inviare comandi.
 
 Utilizzando il metodo imperativo, vengono usati comandi ben specifici per creare, aggiornare e distruggere gli oggetti:
 
-```bash
+```shell
 # CREATE
 kubectl run # crea ed esegue un pod
 kubectl create # crea un oggetto tramite opzioni o leggendo un file yaml
@@ -766,7 +766,7 @@ Per facilitre le operazioni, è possibile utilizzare i file di configurazione *y
 I comandi esposti precendentemente possono fallire se le condizioni non sono corrette (es: cerco di creare un oggetto che esiste già).
 Il comando `kubectl apply` è un comando intelligente che in funzione dello stato del cluster capisce se deve creare, aggiornare o rimuovere gli oggetti:
 
-```bash
+```shell
 kubectl apply -f <file_name>
 ```
 

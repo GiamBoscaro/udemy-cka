@@ -5,19 +5,19 @@
 Kubectl comunica con API Server per ricevere le informazioni richieste. API Server fornisce le informazioni in formato JSON, ma non tutto viene visualizzato nel terminale, neanche con l'opzione `-o wide`.
 Per vedere tutti i dati forniti da API Server, mostrare i risultati in formato *yaml* o *json*:
 
-```bash
+```shell
 kubectl get nodes -o json
 ```
 
 Osservando la struttura dei dati, è possibile ricavare informazioni ben precise utilizzando una query jsonpath:
 
-```bash
+```shell
 kubectl get pods -o=jsonpath=<query>
 ```
 
 Alcuni esempi di query:
 
-```bash
+```shell
 # l'immagine utilizzata dal primo container del primo pod in lista
 kubectl get pods -o=jsonpath='{.items[0].spec.containers[0].image}'
 # tutti i nomi di tutti i nodi nel cluster
@@ -35,7 +35,7 @@ kubectl get pods -o=jsonpath='{.items[*].status.nodeInfo.architecture}{'\n'}{.it
 
 Il risultato dell'ultima query non è molto leggibile, ma è possibile utilzzare un ciclo iterativo per iterare nei dati e stamparli in modo più ordinato. Un ciclo è formato dai comandi `{range .items[*]} {end}`, ad esempio:
 
-```bash
+```shell
 # Nome nodo          Numero CPU del nodo
 '{range .items[*]}
 {.metadata.name}{'\t'}{.status.capacity.cpu}{'\n'}
@@ -44,13 +44,13 @@ Il risultato dell'ultima query non è molto leggibile, ma è possibile utilzzare
 
 Quindi la query da inserire in `kubectl`:
 
-```bash
+```shell
 kubectl get pods -o=jsonpath='{range .items[*]}{.metadata.name}{'\t'}{.status.capacity.cpu}{'\n'}{end}'
 ```
 
 ### Colonne Personalizzate
 
-```bash
+```shell
 kubectl get pods -o=custom-columns=<nome-colonna>:<jsonpath>
 # stampo la colonna dei nomi dei nodi e delle cpu, con i relativi headers
 kubectl get pods -o=custom-columns=NODE:.metadata.name,CPU:.status.capacity.cpu
@@ -65,7 +65,7 @@ kubectl get pods -o=custom-columns=NODE:.metadata.name,CPU:.status.capacity.cpu
 
 Si possono anche ordinare i risultati in funzione di una JSON PATH:
 
-```bash
+```shell
 kubectl get nodes --sort-by=.metadata.name
 ```
 
@@ -91,7 +91,7 @@ Preso questo JSON di esempio:
 
 Se si vuole selezionare il nome del `context` (`contexts[?].name`) in funzione dell'utente associato ad esso (che si trova in `context.user`)
 
-```bash
+```shell
 kubectl config view --kubeconfig=my-kube-config \
 -o jsonpath="{.contexts[?(@.context.user=='aws-user')].name}"
 ```

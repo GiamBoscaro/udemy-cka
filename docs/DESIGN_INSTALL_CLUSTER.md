@@ -24,7 +24,7 @@ In una configurazione HA (*High Availability*) il cluster ha diverse copie del n
 * *Scheduler e Controller Manager*: Solo uno di questi può essere attivo, mentre gli altri rimangono in standby, pronti nel caso di fallimento. I processi attivi vengono scelti tramite la *lead election*.
 Il primo processo che controlla il *Kube Controller Manager Endpoint* diventa leader. Vi sono diverse impostazioni per eleggere il leader:
 
-```bash
+```shell
 --leader-elect true # è a true di default
 --leader-elect-lease-duration 15s # quando dura il lease
 --leader-elect-renew-deadline 10s # quanto tempo si ha per rinnovare il lease

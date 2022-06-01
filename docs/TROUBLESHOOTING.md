@@ -7,7 +7,7 @@ Se il cluster è in funzione ma l'applicazione non sta funzionando, vi sono vari
 * Controllare la connessione con il server e lo stato della rete (es: con `curl`).
 * Controllare i Service che espongono il Pod:
 
-```bash
+```shell
 kubectl describe service <nome-servizio>
 # verificare che i selettori siano corretti
 # verificare che il servizio stia puntando ad almeno un Endpoint
@@ -15,7 +15,7 @@ kubectl describe service <nome-servizio>
 
 * Controllare lo stato del Pod che esegue l'applicazione:
 
-```bash
+```shell
 kubectl get pod # verificare che lo stato sia in Running, e quanti restart ci sono stati
 kubectl describe pod <nome-pod> # verificare la cronologia degli stati
 kubectl logs <nome-pod> -f # verificare i log attuali dell'applicazione
@@ -26,21 +26,21 @@ kubectl logs <nome-pod> -f --previous # verificare i log dei Pod precedenti
 
 Per debuggare i problemi al Control Plane, cominciare col verificare il suo corretto funzionamento e lo stato dei nodi e dei Pod nel cluster:
 
-```bash
+```shell
 kubectl get nodes
 kubectl get pods
 ```
 
 In particolare i Pod che ospitano i servizi del Master Node:
 
-```bash
+```shell
 kubectl get pods -n kube-system
 kubectl logs kube-apiserver-master -n kube-system
 ```
 
 Se i servizi sono invece installati direttamente nell'host:
 
-```bash
+```shell
 service <nome-servizio> status
 sudo journalctl -u <nome-servizio>
 # kube-apiserver, kube-controller-manager, kube-scheduler, kubelet, kube-proxy
@@ -50,7 +50,7 @@ sudo journalctl -u <nome-servizio>
 
 Per verificare i problemi dei nodi, controllare innanzitutto lo stato di essi:
 
-```bash
+```shell
 kubectl get nodes
 kubectl describe node <nome-nodo>
 ```
@@ -58,7 +58,7 @@ kubectl describe node <nome-nodo>
 `describe node` permette di vedere chiaramente molte flag che aiutano a comprendere il problema (poca memoria rimasta, spazio insufficiente ecc.).
 È possibile poi entrare nel nodo e verificare lo stato del sistema con vari comandi
 
-```bash
+```shell
 top # verificare le risorse, memoria e cpu
 df -h # verificare lo storage e i dischi rigidi
 service kubelet status # verificare lo stato del kubelet (service kubelet start per avviarlo)
@@ -88,7 +88,7 @@ CoreDNS consuma più risorse più Pod ci sono nel cluster, e anche più storage 
 
   * Verificare che `kube-dns` abbia degli endpoint validi:
 
-```bash
+```shell
 kubectl -n kube-system get ep kube-dns
 ```
 

@@ -22,7 +22,7 @@ Un modulo di `kubelet` chiamato `cAdvisor` raccoglie le metriche dei Pod in un
 
 Per deployare Metrics Server, utilizzare i manifest presenti nella sua repository:
 
-```bash
+```shell
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 ```
 
@@ -32,7 +32,7 @@ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/late
 
 Metrics Server necessita di un pò di tempo per raccogliere alcune metriche dai nodi. In condizioni normali, è possibile vedere lo stato delle risorse dei nodi e pod tramite:
 
-```bash
+```shell
 kubectl top node
 kubectl top pod
 ```
@@ -41,7 +41,7 @@ kubectl top pod
 
 I logs possono essere visualizzati in modo molto simile a Docker. Per visualizzare i log che un container produce dentro un Pod, utilzzare:
 
-```bash
+```shell
 kubectl logs -f <pod-name> <container-name>
 ```
 

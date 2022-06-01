@@ -5,7 +5,7 @@
 L'infrastruttura di rete dei nodi nel cluster è al di fuori delle competenze di Kubernetes.
 L'IP dei nodi può essere verificato con:
 
-```bash
+```shell
 kubectl get nodes -o wide
 # oppure
 kubectl describe node <nome_nodo>
@@ -13,7 +13,7 @@ kubectl describe node <nome_nodo>
 
 Conoscendo l'IP del Pod, è possibile vedere anche a quale interfaccia del network è connesso con:
 
-```bash
+```shell
 ip link
 # verificare a quale interfaccia è associato l'IP, ad esempio:
 eth0@if16477: ......... inet 10.3.116.12 ........
@@ -21,25 +21,25 @@ eth0@if16477: ......... inet 10.3.116.12 ........
 
 da cui si può anche verificare il MAC Address dell'interfaccia:
 
-```bash
+```shell
 ip link show eth0
 ```
 
 Per verificare il MAC Address di un nodo che non è quello in cui stiamo eseguendo i comandi:
 
-```bash
+```shell
 arp <nome_nodo>
 ```
 
 Ogni processo in esecuzione nel nodo può essere in ascolto in una porta. Per vedere a quali porte è assosciato un processo:
 
-```bash
+```shell
 netstat -nplt
 ```
 
 Per conoscere esattamente tutte le caratteristiche della rete a cui il nodo è connesso, è possibile utilizzare `ipcalc` (da installare con `apt`):
 
-```bash
+```shell
 ipcalc <ip> # es: ip nodo 10.49.70.3/24
 # OUTPUT:
 Address:   10.49.70.3           
@@ -67,7 +67,7 @@ Tutte le soluzioni si basano sul concetto di Network Bridge e Interfacce Virtual
 
 1. All'interno di ogni nodo, viene creato un network bridge per i Pod:
 
-```bash
+```shell
 # uno per ogni nodo
 ip link add v-net-0 type bridge
 ip link set dev v-net-0 up # attiva l'interfaccia
@@ -75,7 +75,7 @@ ip link set dev v-net-0 up # attiva l'interfaccia
 
 2. Viene assegnato un IP al bridge di ogni nodo. L'IP è diverso per ogni nodo presente:
 
-```bash
+```shell
 ip -n <namespace> addr add 10.244.1.1/24 dev v-net-0
 # es: 10.244.x.1/24 con x = numero nodo
 ```
@@ -84,7 +84,7 @@ ip -n <namespace> addr add 10.244.1.1/24 dev v-net-0
 
 3. Collegare ogni container al bridge all'interno del nodo:
 
-```bash
+```shell
 # per OGNI CONTAINER all'interno del nodo
 ip link add <vnet_container> type veth peer name <vnet_container_br> # crea i connettori virtuali
 ip link set <vnet_container> netns <container> # connette un capo del connettore al container
@@ -97,7 +97,7 @@ Tutti i container all'interno del nodo potranno ora comunicare tra di loro, ma n
 
 4. Collegare il network bridge dei nodi agli altri nodi:
 
-```bash
+```shell
 ip route add <ip_bridge_network> <ip_nodo>
 ```
 
@@ -111,13 +111,13 @@ Il processo appena visto può essere scriptato ed eseguito manualmente ad ogni c
 
 Lo script visto in precedenza può essere automatizzato in modo che avvenga ad ogni creazione di un Pod. Per fare ciò lo script deve seguire lo standard CNI (*Container Network Interface*). Lo script deve avere un comando `add` e `delete` per aggiungere o eliminare un container in un certo namespace:
 
-```bash
+```shell
 ./net-script.sh add <container> <namespace>
 ```
 
 `kubelet`, che gestisce la creazione dei container, può quindi poi essere configurato per eseguire questo script ad ogni creazione di un container:
 
-```bash
+```shell
 kubelet \
     --cni-conf-dir=/etc/cni/net.d # indica la configurazione di networking. Al suo interno c'è il nome dello script da eseguire
     --cni-bin-dir=/etc/cni/bin # la cartella contiene gli script
@@ -160,20 +160,20 @@ Una delle soluzioni più utilizzate per il networking dei Pod è [Weave](https:/
 
 Per installare Weave:
 
-```bash
+```shell
 kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
 ```
 
 Il network di default di weave è `10.32.0.0/12`. Weave suddivide tutti gli IP disponibili tra i nodi presenti nel cluster. I Pod all'iterno del nodo potranno usare il range di IP assegnato al nodo.
 Questo network potrebbe andare in conflitto con gli IP del cluster. Il Pod di Weave potrebbe andare in crash loop. Per verificare i log:
 
-```bash
+```shell
 kubectl logs -n kube-system weave-net-xjd5z -c weave
 ```
 
 È necessario modificare la variabile d'ambiente `IPALLOC_RANGE`. Per fare cioè, appendere al manifest di Weave la variabile:
 
-```bash
+```shell
 kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')&env.IPALLOC_RANGE=10.50.0.0/16"
 ```
 
@@ -193,13 +193,13 @@ La modalità può essere impostata durante la configurazione di `kube-proxy` usa
 
 Le regole che vengono create dal `kube-proxy` per gestire i servizi sono visibili col comando:
 
-```bash
+```shell
 iptables -L -t nat | grep <nome_servizio>
 ```
 
 Per controllare i log del `kube-proxy` è possibile anche verificare i log all'interno del Pod:
 
-```bash
+```shell
 kubectl logs <kube_proxy_pod> -n kube-system
 ```
 
@@ -209,7 +209,7 @@ I Pod si connettono tra di loro in genere attraverso i Servizi. Possono connette
 
 Se la comunicazione avviene tra due namespace diversi, è necessario specificare il namespace oltre che al nome del servizio (`http://<servizio>.<namespace>`). In realtà tutti i servizi vengono poi raggrupati in un grande namespace detto `type` con valore `svc`. A loro volta, tutti i servizi (e anche tutti i Pod) vengono raggruppati nel namespace di root del cluster, `cluster.local`. L'uri completa per connettersi ad un servizio (*fully qualified domain*) sarebbe quindi:
 
-```bash
+```shell
 http://<servizio>.<namespace>.svc.cluster.local
 ```
 
@@ -217,7 +217,7 @@ http://<servizio>.<namespace>.svc.cluster.local
 
 Di default, Kubernetes non crea alcun DNS Record per i Pod. Se richiesto, però, è possibile abilitare questa funzione. Il DNS crea un record di questo tipo:
 
-```bash
+```shell
 http://<pod>.<namespace>.pod.cluster.local
 ```
 
@@ -227,7 +227,7 @@ dove però `<pod>` __non__ è il nome del Pod, ma semplicemente l'IP del Pod dov
 
 Kubernetes deploya un DNS server per il cluster (due Pod in replica sul Master), in cui vengono associati tutti i domini dei servizi ai loro IP. Ogni nodo dovrà sapere come raggiungere il server DNS per risolve i domini. Questo può essere fatto aggiungendo il server a `/etc/resolv.conf`:
 
-```bash
+```shell
 # ...
 nameserver  10.96.0.10 # ip del DNS server
 # ...
@@ -257,7 +257,7 @@ La configurazione di CoreDNS si trova in `etch/coredns/Corefile`:
 Il file di configurazione consiste in vari plugin che CoreDNS esegue. Il plugin che gestire il DNS di Kubernetes è `kubernetes`. È possibile modificare o aggiungere diverse opzioni per modificare il comportamento del DNS (ad es: `pods` indica di creare i record DNS anche per i Pod).
 Questa configurazione viene iniettata nel Pod di CoreDNS tramite una ConfigMap, visibile con:
 
-```bash
+```shell
 kubectl describe cm coredns -n kube-system
 ```
 
@@ -445,7 +445,7 @@ spec:
 
 Per creare velocemente un Ingress è possibile utilizzare il metodo imperativo:
 
-```bash
+```shell
 kubectl create ingress <ingress-name> --rule="host/path=service:port"
 # esempio:
 kubectl create ingress my-ingress --rule="www.my-app.com/mail=mail-service:80"

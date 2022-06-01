@@ -39,7 +39,7 @@ target:
 
 La definizione *yaml* va trasformata in JSON e inviata tramite curl all'API di Kubernetes:
 
-```bash
+```shell
 curl --header "Content-Type: application/json" --request POST --data '{"apiVersion":"v1", "kind":"Binding", ...}' http://$SERVER/api/v1/namespaces/default/pods/$PODNAME/binding
 ```
 
@@ -49,13 +49,13 @@ curl --header "Content-Type: application/json" --request POST --data '{"apiVersi
 
 Per selezionare degli oggetti in funzione dei `labels`:
 
-```bash
+```shell
 kubectl get pods --selector app=my-app
 ```
 
 Per contare velocemente tutti gli oggetti con un certo label:
 
-```bash
+```shell
 kubectl get pods -l app=my-app --no-headers | wc -l
 ```
 
@@ -71,7 +71,7 @@ Sono delle regole che permettono di limitare il deploy di Pod in alcuni nodi. Ad
 
 Anche il *Master Node* del cluster potrebbe ricevere dei Pod, ma è tainted da Kubernetes quando il cluster viene creato. È possibile applicare un repellente ai Pod in modo che questi vengano deployati anche nel nodo master, ma è buona norma non farlo. Per conoscere il Taint del master:
 
-```bash
+```shell
 kubectl describe node kubemaster | grep Taint
 ```
 
@@ -79,13 +79,13 @@ kubectl describe node kubemaster | grep Taint
 
 Per applicare un `taint` ad un nodo:
 
-```bash
+```shell
 kubectl taint nodes <nome_nodo> key=value:taint-effect
 ```
 
 Per rimuovere un `taint` aggiungere un `-` alla fine:
 
-```bash
+```shell
 kubectl taint nodes <nome_nodo> key=value:taint-effect-
 ```
 
@@ -97,7 +97,7 @@ I `taint-effect` hanno dei valori ben definiti:
 
 un esempio può essere:
 
-```bash
+```shell
 kubectl taint nodes node1 app=blue:NoSchedule
 ```
 
@@ -148,7 +148,7 @@ spec:
 
 Per applicare un `label` ad un nodo:
 
-```bash
+```shell
 kubectl label nodes <node-name> <label-key>=<label-value>
 ```
 
@@ -215,7 +215,7 @@ Una combinazione corretta di Taints e Affinity permette di schedulare un Pod esa
 
 Le risorse di un nodo sono CPU, Memoria e Disco. Lo Scheduler si occupa di deployare i Pod in nodi che abbiano abbastanza risorse disponibili per eseguirli. Se nessun nodo è libero, il Pod rimarra in Pending. Controllando gli eventi di un Pod è possibile verificare con precisione quale risorsa non è sufficiente. Per fare ciò:
 
-```bash
+```shell
 kubectl describe pod <nome_pod> | grep "Events"
 ```
 
@@ -352,7 +352,7 @@ I Pod Statici sono utili per creare nuovi nodi Master, ed è la stessa strategia
 
 All'esecuzione di `kubectl` è possibile passare un parametro per modificare la cartella di default contentente i file *yaml*:
 
-```bash
+```shell
 # kubelet.service
 /usr/local/bin/kubelet --pod-manifest-path=/etc/kubernetes/manifests
 ```
@@ -360,7 +360,7 @@ All'esecuzione di `kubectl` è possibile passare un parametro per modificare la 
 I file del servizio sono posizionati in `/lib/systemd/system/`.
 In alternativa, è possibile indicare un file di configurazione esterno:
 
-```bash
+```shell
 # kubelet.service
 /usr/local/bin/kubelet --config=kubeconfig.yaml
 ```
@@ -372,7 +372,7 @@ staticPodPath: /etc/kubernetes/manifests
 
 Questo approccio è quello usato da `kubeadm` durante il setup del cluster. Per trovare la posizione del file su un nodo in cui `kubelet` è già in esecuzione:
 
-```bash
+```shell
 ps aux | grep kubelet
 ```
 
@@ -384,7 +384,7 @@ Nell'output che comprare, trovare l'opzione `config=/path/to/config.yaml` che in
 
 Per vedere gli Scheduler attivi:
 
-```bash
+```shell
 kubectl get pods --namespace=kube-system
 ```
 
@@ -392,7 +392,7 @@ kubectl get pods --namespace=kube-system
 
 Il deploy di un nuovo Scheduler viene effettuato come con `kube-scheduler`.
 
-```bash
+```shell
 ExecStart=/usr/local/bin/kube-scheduler
     --config=/etc/kubernetes/config/kube-scheduler.yaml
     --scheduler-name=my-custom-scheduler # nome dello scheduler
@@ -449,13 +449,13 @@ Per verificare il corretto funzionamento dello Scheduler è possibile visionare 
 
 Per mostrare tutti gli eventi avvenuti nel Namespace corrente:
 
-```bash
+```shell
 kubectl get events
 ```
 
 Per vedere i logs dello Scheduler:
 
-```bash
+```shell
 kubectl logs my-custom-scheduler -n kube-system
 ```
 

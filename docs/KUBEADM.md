@@ -16,13 +16,13 @@ Se i prerequisiti sono rispettati è possibile proseguire con l'installazione:
 
 * Abilitare il *bridged traffic* nelle IP tables:
 
-```bash
+```shell
 sudo modprobe br_netfilter
 ```
 
 * Configurare i nuovi parametri del Kernel:
 
-```bash
+```shell
 cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
 br_netfilter
 EOF
@@ -36,7 +36,7 @@ sudo sysctl --system
 
 * Installare la Container Runtime (es: [Docker](https://docs.docker.com/engine/install/#server)):
 
-```bash
+```shell
 sudo apt-get update
 
 sudo apt-get install \
@@ -58,7 +58,7 @@ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
 * Installare i componenti di Kubernetes:
 
-```bash
+```shell
 sudo apt-get update
 sudo apt-get install -y apt-transport-https ca-certificates curl
 
@@ -75,7 +75,7 @@ Una volta installati i componenti, si può iniziare ad installare e configurare 
 
 * Inizializzare il Control Plane:
 
-```bash
+```shell
 # da eseguire come root
 kubeadm init \
 --pod-network-cidr=10.244.0.0/16 \ # IP utilizzati dai Pod
@@ -84,7 +84,7 @@ kubeadm init \
 
 * Configurare `kubectl` per funzionare per gli utenti non root:
 
-```bash
+```shell
 # da eseguire come normale user
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
@@ -93,7 +93,7 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
 * Installare il plugin per la gestione del network (CNI). Per esempio, per Weave:
 
-```bash
+```shell
 # da eseguire come normale user
 kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
 ```
@@ -102,14 +102,14 @@ kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl versio
 
 * Unire i nodi al network del cluster:
 
-```bash
+```shell
 kubeadm join --token <token> <control-plane-host>:<control-plane-port> --discovery-token-ca-cert-hash sha256:<hash>
 ```
 
 Il comando, con tutti i valori pre inseriti, viene mostrato alla fine del processo di inizializzazione (`kubedm init`).
 Se non ci si ricorda il token, è possibile vederlo con:
 
-```bash
+```shell
 kubeadm token list
 # se è scaduto bisogna ricrearlo:
 kubeadm token create
@@ -117,14 +117,14 @@ kubeadm token create
 
 Per lo SHA265 del certificato:
 
-```bash
+```shell
 openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | \
    openssl dgst -sha256 -hex | sed 's/^.* //'
 ```
 
 * Verificare lo stato dei nodi:
 
-```bash
+```shell
 kubectl get nodes
 ```
 

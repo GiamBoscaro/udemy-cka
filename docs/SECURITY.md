@@ -54,7 +54,7 @@ password,username,userid,groupid
 Il file viene letto da `kubeapi-server` per gestire l'autenticazione.
 Per indicare a `kubeapi-server` quale file utilizzare per l'autenticazione, usare l'opzione:
 
-```bash
+```shell
 # kube-apiserver.service
 --basic-auth-file=user-details.cs
 ```
@@ -63,7 +63,7 @@ Per indicare a `kubeapi-server` quale file utilizzare per l'autenticazione, usar
 
 Per autenticarsi durante le chiamate:
 
-```bash
+```shell
 curl -v -k https://master-node-ip:6443/api/v1/pods -u "user:password"
 ```
 
@@ -79,7 +79,7 @@ che va indicato al `kubeapi-server` con l'opzione `--token-auth-file`.
 
 L'autenticazione viene effettuata con un Bearer token nell'header della chiamata:
 
-```bash
+```shell
 curl -v -k https://master-node-ip:6443/api/v1/pods -H "Authorization: Bearer <token>"
 ```
 
@@ -189,7 +189,7 @@ Oltre a questi certificati, vi sono anche i certificati della *Certificate Autho
 
 Per prima cosa, viene generato il certificato della *Certificate Authority*. In questo caso, il certificato è self-signed:
 
-```bash
+```shell
 # Genera la chiave privata
 openssl genrsa -out ca.key 2048
 # Genera la sign request
@@ -206,7 +206,7 @@ __NB__: è necessario distribuire il certificato CA a __tutti__ i componenti che
 
 Si può procedere poi a creare gli altri certificati. Il certificato per l'amministratore sarà un certificato per client, essendo l'amministratore un client che si connette al cluster:
 
-```bash
+```shell
 openssl genrsa -out admin.key 2048
 # Genera il certificato per l'amministratore e lo inserisce nel gruppo dei masters
 openssl req -new -key admin.key -subj "/CN=kube-admin/O=SYSTEM:MASTERS" -out admin.csr
@@ -220,7 +220,7 @@ E importante ricordasi di insererire `/O=SYSTEM:MASTERS` in modo che l'utente ve
 
 Per autorizzare una chiamata `curl` con un certificato TLS:
 
-```bash
+```shell
 curl https://kube-apiserver:6443/api/v1/pods \
     --key admin.key 
     --cert admin.crt 
@@ -233,7 +233,7 @@ curl https://kube-apiserver:6443/api/v1/pods \
 
 I componenti di sistema sono a loro volta dei client di `kubeapi-server`. Vengono creati allo stesso modo del certificato di amministratore, ma è necessario ricordarsi del prefisso `SYSTEM:` nel CN. Si procede quindi alla generazione dei certificati per `kube-scheduler`, `kube-controller-manager`, `kube-proxy`:
 
-```bash
+```shell
 openssl genrsa -out scheduler.key 2048
 openssl req -new -key scheduler.key -subj "/CN=system:kube-scheduler" -out scheduler.csr
 openssl x509 -req -in scheduler.csr -CA ca.crt -CAkey ca.key -out scheduler.crt
@@ -279,7 +279,7 @@ IP.2 = 172.17.0.87
 
 e poi generare la chiave specificando il file di configurazione:
 
-```bash
+```shell
 openssl genrsa -out apiserver.key 2048
 openssl req -new -key apiserver.key -subj "/CN=kube-apiserver" -out apiserver.csr --config openssl.cnf
 openssl x509 -req -in apiserver.csr -signkey apiserver.key -out apiserver.crt
@@ -287,7 +287,7 @@ openssl x509 -req -in apiserver.csr -signkey apiserver.key -out apiserver.crt
 
 È possibile anche generare i certificati client di `kubeapi-server`, usati per le connessioni a `kubelet` e `etcd`. Tutti questi certificati vanno specificati all'avvio del servizio:
 
-```bash
+```shell
 ExecStart=/usr/local/bin/kube-apiserver \\
 # Certificati client per etcd
 --etcd-cafile=/var/lib/kubernetes/ca.pem \\
@@ -324,7 +324,7 @@ tlsPrivateKeyFile: "/var/lib/kubelet/kubelet-node01.key"
 
 Kubelet comunica anche con il KubeAPI Server come client, per cui è necessario generare anche i certificati client per ogni nodo. Il KubeAPI Server deve conoscere quale nodo lo sta contattando, per cui il CN deve seguire la nomenclatura `SYSTEM:NODE:<nome_nodo>`:
 
-```bash
+```shell
 openssl genrsa -out node01-client.key 2048
 openssl req -new -key node01-client.key -subj "/CN=SYSTEM:NODE:NODE01/O=SYSTEM:NODES" -out node01-client.csr
 openssl x509 -req -in node01-client.csr -CA ca.crt -CAkey ca.key -out node01-client.crt
@@ -337,7 +337,7 @@ Per avere i permessi corretti, il nodo deve essere dentro il gruppo `SYSTEM:NODE
 È importante tenere sotto controllo e organizzati tutti i certificati del cluster, magari su una tabella che contenga tutti i dettagli di ogni certificato (vedi [certs-checker.xlsx](/assets/section-7/kubernetes-certs-checker.xlsx)).
 Per vedere i dettagli di un certificato nel cluster:
 
-```bash
+```shell
 openssl x509 -in /path/to/certificate -text -noout
 ```
 
@@ -354,19 +354,19 @@ Se vi sono dei problemi nel cluster riguardanti la connettività, è possibile c
 
 Se i servizi sono stati installati da zero nella macchina, si possono vedere i log di sistema con:
 
-```bash
+```shell
 journalctl -u etcd.service -l
 ```
 
 Se invece si utilizza `kubeadm`:
 
-```bash
+```shell
 kubectl logs etcd-master
 ```
 
 Se i problemi riguardano direttamente `kubeapi-server` o `etcd` potrebbe non funzionare il comando `kubectl`, per cui è necessario andare a controllare i log direttamente nei container docker:
 
-```bash
+```shell
 docker ps -a
 docker logs <id_container>
 ```
@@ -392,7 +392,7 @@ La procedura per la creazione di un nuovo certificato tramite API è la seguente
 
 1. Il nuovo utente crea una chiave e la sua csr:
 
-```bash
+```shell
 openssl genrsa -out user.key 2048
 openssl req -new -key user.key -subk "/CN=user" -out user.csr
 ```
@@ -416,7 +416,7 @@ spec:
 
 *Nota*: la csr deve essere codificata in base64:
 
-```bash
+```shell
 cat user.csr | base64 | tr -d "\n"
 ```
 
@@ -424,7 +424,7 @@ cat user.csr | base64 | tr -d "\n"
 
 3. Tutti gli amministratori già certificati possono vedere, revisionare la richiesta e approvarla:
 
-```bash
+```shell
 kubectl get csr
 kubectl certificate approve <nome_certificato> # es: user
 # per rifiutarlo:
@@ -433,7 +433,7 @@ kubectl certificate deny <nome_certificato>
 
 4. Il certificato firmato può essere visto con:
 
-```bash
+```shell
 kubectl get csr <nome_certificato> -o yaml
 ```
 
@@ -449,7 +449,7 @@ Ef6IgJGsre... # in base 64
 
 Per decodificarlo:
 
-```bash
+```shell
 echo <certificato> | base64 --decode
 ```
 
@@ -460,7 +460,7 @@ echo <certificato> | base64 --decode
 Quando si utilizza il comando `kubectl`, questo una configurazione di default per inviare i comandi al cluster. Molte volte si hanno però molti cluster da gestire, ed ogni cluster richiede l'accesso con utenti diversi e certificati diversi.
 È possibile specificare manualmente, ad ogni comando, il cluster di destinazione e i certificati necessari:
 
-```bash
+```shell
 kubectl get pods
     --servermy-kube-playground:6443
     --client-key admin.key
@@ -470,7 +470,7 @@ kubectl get pods
 
 ma questo procedimento sarebbe troppo complicato. La soluzione migliore è utilizzare un file di configurazione e indicare solo quello nel comando
 
-```bash
+```shell
 kubectl get pods --kubeconfig config
 ```
 
@@ -508,7 +508,7 @@ contexts:
 
 `current-context` indica il contesto attuale al quale `kubectl` invierà i comandi di default. Per cambiare il contesto:
 
-```bash
+```shell
 kubectl set-context prod@kube-prod
 ```
 
@@ -516,7 +516,7 @@ kubectl set-context prod@kube-prod
 
 Per vedere la configurazione direttamente con `kubectl`:
 
-```bash
+```shell
 kubectl config view
 # se la configurazione non è su $HOME/.kube/config bisogna specificarla
 kubectl config view --kubeconfig=my-custom-config
@@ -546,13 +546,13 @@ Le API di Kubernetes sono raggiungibili tramite `kubectl` ma anche tramite delle
 
 Tutte le risorse (che verrano poi utilizzate per la definizione dei ruoli) sono elencabili con:
 
-```bash
+```shell
 kubectl api-resources
 ```
 
 Se si prova ad accedere alle API che richiedono autenticazione verrà restituito un errore. Infatti deve essere precisato, ad ogni chiamata, la posizione dei certificati che si vogliono utilizzare per l'autenticazione.
 
-```bash
+```shell
 curl http://localhost:6443 -k
     --key admin. key
     --cert admin.crt
@@ -561,7 +561,7 @@ curl http://localhost:6443 -k
 
 Per evitare di dover inserire questi comandi ogni volta, è possibile utilizzare il `kubectl proxy`, che legge questi certificati dalla `kubeconfig` ed espone un indirizzo locale al quale possono essere inviate tutte le richieste alle API. È il proxy che si occupa di inviare anche i certificati.
 
-```bash
+```shell
 kubectl proxy # espone localhost:8001
 curl http://localhost:8001 -k # non è piu necessario indicare i certificati
 ```
@@ -626,7 +626,7 @@ roleRef:
 
 Per vedere i Role e RoleBindings:
 
-```bash
+```shell
 kubectl get roles
 kubectl get rolebindings
 kubectl describe role <nome_ruolo>
@@ -637,7 +637,7 @@ kubectl describe rolebindings <nome_role_binding>
 
 Se si è loggati nel cluster con un certo utente, e si vuole verificare se con questo utente si può eseguire un certo comando, utilizzare:
 
-```bash
+```shell
 kubectl auth can-i <comando>
 # esempio:
 kubectl auth can-i delete nodes # => no
@@ -645,7 +645,7 @@ kubectl auth can-i delete nodes # => no
 
 Per controllare i permessi di un altro utente senza loggarsi, usare l'opzione `--as`:
 
-```bash
+```shell
 kubectl auth can-i <comando> --as dev-user
 # per selezionare un ben preciso namespace:
 kubectl auth can-i <comando> --as dev-user --namespace test
@@ -685,7 +685,7 @@ roleRef:
 
 *Nota*: in un cluster possono esserci molti ruoli. Per contarli facilmente usare:
 
-```bash
+```shell
 kubectl get clusterroles -A --no-headers | wc -l
 ```
 
@@ -694,7 +694,7 @@ kubectl get clusterroles -A --no-headers | wc -l
 I *Service Account* sono utenze utilizzati da bot o servizi che devono accedere in modo autonomo al cluster per leggere alcune informazioni (es: metriche, salute del cluster).
 Per creare un nuovo service account:
 
-```bash
+```shell
 kubectl create serviceaccount <nome_account>
 # elenco di tutti gli account di servizio
 kubectl get serviceaccount
@@ -704,7 +704,7 @@ kubectl describe serviceaccount <nome_account>
 
 Quando si crea un *Service Account*, viene automaticamente creato un token utilizzato come *Bearer Token* nell'header di autenticazione. Il token è contenuto in un secret, che si può visualizzare con:
 
-```bash
+```shell
 kubectl describe secret <nome_token_account> # es: account-token-kbbdm
 ```
 
@@ -740,7 +740,7 @@ spec:
 
 Per scarica in un Pod un'immagine Docker privata, è necessario inserire l'indirizzo completo dell'immagine nel registro, ma è anche ncessario effettuare l'accesso a questo registro. Le credenziali vengono salvate in uno specifico tipo di Secret chiamato `docker-registry`:
 
-```bash
+```shell
 kubectl create secret docker-registry regcred \
 --docker-server=
 --docker-username=
@@ -766,7 +766,7 @@ spec:
 
 Tutti i processi all'interno di container Docker vengono eseguiti come root. L'utente di root all'interno del container __è diverso__ da quello dell'host. In ogni caso, non sempre si vuole eseguire i processi con root, quindi si può specificare l'utente utilizzato all'interno dei container con:
 
-```bash
+```shell
 docker run --user=1000 ubuntu
 ```
 
@@ -782,7 +782,7 @@ USER 1000
 In aggiunta, si possono aggiungere e rimuovere le *Linux Capabilities* dell'utente, cioè le funzionalità avanzate del kernel di Linux, che possono avere forti ripercussioni sul sistema se usate incorrettamente.
 Per modificare le *Capabilities*:
 
-```bash
+```shell
 # Aggiungere un capability
 docker run --cap-add MAC_ADMIN ubuntu
 # Rimuovere un capability
@@ -918,13 +918,13 @@ In questo caso tutte le regole sono separate, e solo una deve essere valita perc
 
 È possibile elencare le Network Policies con:
 
-```bash
+```shell
 kubectl get networkpolicies
 ```
 
 ma controllare la configurazione della policy non assicura il suo corretto funzionamento. È possibile verificare il funzionamento con più precisione il funzionamento entrando nei container interessati e facendo dei test con alcune utility come `telnet` o `nslookup`:
 
-```bash
+```shell
 telnet <ip_pod> <porta>
 kubectl exec <nome_pod> --restart=Never -it -- nslookup <ip_pod>:<porta>.<namespace>.pod.cluster.local
 ```
