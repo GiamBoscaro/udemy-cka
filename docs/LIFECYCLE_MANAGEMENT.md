@@ -357,8 +357,93 @@ spec:
 
 ## Applicazioni Self-Healing
 
-Il Replication Controller permette di tenere sotto controllo lo stato dei Pod e di ricrearli qual'ora crashassero.
-Esistono due ulteriori metodi per controllare lo stato di un Pod con più precisione: Liveness Probes e Readiness Probes.
+Il Replication Controller permette di tenere sotto controllo lo stato dei Pod e di ricrearli qualora crashassero. Lo stato del Pod può essere visto con `kubectl describe`. Con questo comando si possono anche vedere le *Pod Conditions*, un array di booleani che indica con precisione quali fasi dell'esecuzione del Pod sono state superate e quali sono in errore:
+
+* *PodScheduled*: il Pod è stato schedulato in un nodo.
+* *Initialized*: il nodo ha iniziato a deployare il Pod.
+* *ContainersReady*: i container all'interno del Pod sono pronti.
+* *Ready*: il Pod è pronto. È lo stesso flag che si vede con `kubectl get pods`.
+
+### Readiness Probe
+
+Le applicazioni in esecuzione all'interno del Pod sono tra le più varie. Per questo è difficile automatizzare la verifica dello status di *Ready* in tutti i casi possibili. Lo sviluppatore dell'applicazione conosce con precisione il processo di avvio dell'applicazione e quando questa sarà pronta. È possibile impostare un *Readiness Probe* che continua a testare l'applicazione all'interno del Pod finchè non si ha la risposta voluta, che indica che l'applicazione è pronta.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels:
+    app: myapp
+spec:
+  containers:
+  - name: webapp
+    image: webapp
+    ports:
+      - containerPort: 8080
+    readinessProbe:
+      httpGet:
+        path: /api/ready
+        port: 8080
+      # dopo quanti secondi iniziare a testare col readinessProbe
+      initialDelaySeconds: 10
+      # ogni quanto eseguire il readinessProbe
+      periodSeconds: 5
+      # dopo quanti tentativi il Pod viene considerato in errore
+      failureThreshold: 8
+```
+
+Finchè il `readinessProbe` non darà una risposta positiva, il Servizio associato al Pod non inoltrerà alcuna richiesta ad esso. Questo è particolarmente importante in un deployment con più repliche. Se il deployment viene scalato e vengono aggiunte repliche in fase di avviamento, il servizio inizierà ad inviare chiamate ai nuovi Pod subito se nessun `readinessProbe` è impostato. Per cui alcuni utenti potrebbero avere problemi nell'utilizzo dell'applicazione.
+
+* *Nota*: se non viene impostato alcun `readinessProbe`, Kubernetes segnerà come Ready il Pod appena tutti i container al suo interno saranno in esecuzione.
+
+Vi sono diversi modi per testare lo stato del Pod:
+
+```yaml
+# GET ad un API di test
+httpGet:
+  path: /api/ready
+  port: 8080
+# Connessione ad un socket TCP
+tcpSocket:
+  port: 3306
+  # Esecuzione di un comando o script all'interno del container
+exec:
+  command: 
+  - sh
+  - /app/is_ready.sh
+```
+
+### Liveness Probe
+
+Quando un container all'interno del Pod crasha, lo stato del Pod passa ad errore, il Pod viene riavviato o distrutto. È possibile però che il container rimanga in esecuzione anche se l'applicazione che sta eseguendo non sta effettivamente funzionando (come ad esempio un loop infinito). È necessario quindi impostare un *Liveness Probe* per testare continuamente la salute dell'applicazione durante l'esecuzione.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels:
+    app: myapp
+spec:
+  containers:
+  - name: webapp
+    image: webapp
+    ports:
+      - containerPort: 8080
+    livenessProbe:
+      httpGet:
+        path: /api/ready
+        port: 8080
+      # dopo quanti secondi iniziare a testare col readinessProbe
+      initialDelaySeconds: 10
+      # ogni quanto eseguire il readinessProbe
+      periodSeconds: 5
+      # dopo quanti tentativi il Pod viene considerato in errore
+      failureThreshold: 8
+```
+
+La configurazione del `livenessProbe` è uguale a quella del `readinessProbe`, è sono possibili gli stessi tipi di test (chiamata API, connessione ad un socket, esecuzione di comandi).
 
 ## References
 
