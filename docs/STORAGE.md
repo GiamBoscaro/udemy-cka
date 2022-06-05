@@ -5,6 +5,29 @@
 I Pod sono effimeri, vengono continuamente creati e distrutti. Questo significa che i dati generati al loro interno non sono permanenti ma vengono persi ogni volta che il Pod viene eliminato.
 Se si vogliono mantenere i dati interni al Pod, è necessario utilizzare un *Volume*.
 
+### Volume nel Pod
+
+Per creare un volume che esiste solo finchè il Pod è in esecuzione, utilizzare `emptyDir`:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+spec:
+  containers:
+  - image: k8s.gcr.io/test-webserver
+    name: webserver
+    volumeMounts:
+    - mountPath: /cache
+      name: cache-volume
+  volumes:
+  - name: cache-volume
+    emptyDir: {}
+```
+
+*Nota*: in caso di crash del Pod, il volume __non__ viene cancellato. Il volume viene rimosso solo quando il Pod viene rimosso.
+
 ### Volume nell'Host
 
 Per salvare i dati nell'host che sta ospitando il Pod, utilizzare `hostPath`:
