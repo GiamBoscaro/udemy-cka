@@ -848,7 +848,7 @@ spec:
     # ...
 ```
 
-Quando si definisce un *Ingress*, automaticamente viene permesso l'invio della risposta al Pod che aveva fatto la richiesta, senza definire alcuna regola aggiuntiva. Ovviamente, le richieste in uscita dal Pod vengono ancora bloccate, e necessitano di una regola *Egress* perch+ la chiamata vada a buon fine.
+Quando si definisce un *Ingress*, automaticamente viene permesso l'invio della risposta al Pod che aveva fatto la richiesta, senza definire alcuna regola aggiuntiva. Ovviamente, le richieste in uscita dal Pod vengono ancora bloccate, e necessitano di una regola *Egress* perchè la chiamata vada a buon fine.
 
 *Nota*: le Network Policies vengono gestite dal network di Kubernetes. Ci sono varie soluzioni per gestire il network, ma non tutte supportano le policies (es: *flannel* non le supporta). Le policy possono comunque essere create ma verranno ignorate.
 
@@ -865,7 +865,7 @@ Di default, la Network Policy è applicata per __tutti__ i namespace. È necessa
           role: api-pod
       namespaceSelector:
         matchLabels:
-          role: prod
+          name: prod
 # ...
 ```
 
