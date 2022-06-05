@@ -517,6 +517,115 @@ Potrebbe essere complicato creare da zero un file *yaml* da terminale. È possib
 kubectl create deployment --image=nginx nginx --dry-run=client -o yaml > nginx-deployment.yaml
 ```
 
+## Stateful Sets
+
+Gli *Stateful Sets* sono simili ai *Deployments* ma vengono utilizzati quando lo stato del Pod è importante, e tutte le repliche devono avere lo stesso stato (ad esempio: nei database, tutte le repliche devono avere i dati nel database sincronizzati tra di loro).
+Una strategia di base è quella di avere un Pod Master e diversi Pod Slave/Read Only. Il master si occupa di scrivere i dati nel database, mentre dalle repliche è possibile solo che leggere.
+
+Una strategia per creare delle repliche di Pod stateful è quella di creare prima un Master, quando questo è pronto, creare il primo Slave copiando i dati dal Master. Successivamente, creare altri Slave, sempre attendendo che lo Slave precedente sia pronto, e copiando i dati da esso (non dal Master, per evitare di sovraccaricarlo). Questo procedimento __non__ può essere seguito con un Deployment. Stateful Set invece assicura che:
+
+* I Pod vengano creati con ordine, attendendo che quello precedente sia Ready.
+* I Pod abbiano dei nomi statici, cioè `<nome-pod>-<numero-incrementale>`, dove il numero va da 0 ad n. Il Pod con numero 0 sarà il Master.
+
+### Deploy di uno StatefulSet da specifica YAML
+
+La configurazione di uno StatefulSet è simile a quella di un Deployment, cambia solo il `kind` e la richiesta di un *Headless Service*:
+
+```yaml
+# deployment-definition.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+    name: myapp-deployment
+    labels:
+        app: myapp
+        type: front-end
+spec:
+    replicas: 3
+    selector: 
+        matchLabels:
+            type: front-end
+    serviceName: mysql-h # servizio headless
+    podManagementPolicy: OrderedReady # OrderedReady/Parallel
+    template:
+    ### POD DEFINITION ###
+        metadata:
+        name: myapp-pod
+        labels:
+            app: myapp
+            type: front-end
+        spec:
+            containers:
+            - name: nginx-container
+              image: nginx
+    ######################
+```
+
+`podManagementPolicy` indica che strategia di deployment usare per l'esecuzione dei Pod:
+
+* `OrderedReady`: è l'opzione di default. I Pod vengono creati con ordine, uno per volta.
+* `Parallel`: i Pod vengono creati in parallelo, ma avranno comunque sempre un nome statico (a differenza dei Pod dei Deployment, che hanno un nome casuale).
+
+Il servizio headless permette di contattare i Pod in modo diretto senza conoscere il loro IP. In questo modo l'applicazione può connettersi al Master quando deve scrivere, e connettersi al normale servizio del database (quello che effettua il load balancing tra le repliche readonly) quando deve scaricare dei dati (vedi [Headless Service](#headless-service)).
+
+### Volumi per Stateful Sets
+
+Impostando un volume nel modo classico su un StatefulSet, risulta che ogni Pod utilizza la stessa PVC e quindi lo stesso PV. Non è in genere questa la soluzione che si vuole adottare, inoltre non tutti i volumi supportano la modalità `ReadWriteMany`.
+
+```yaml
+apiVersion: v1
+kind: StatefulSet
+# ...
+template:
+    metadata:
+        labels:
+            app: mysql
+    spec:
+    containers:
+        - name: mysql
+        image: mysql
+        volumeMounts:
+        - mountPath: "/var/lib/mysql"
+            name: data-volume
+    volumes:
+        # la PVC è stata definita all'esterno, è statica e ogni Pod la utilizzerà per il volume dei dati
+        - name: data-volume
+        persistentVolumeClaim:
+            claimName: data-volume
+```
+
+Si vuole invece avere una PVC e quindi un PV diverso associato ad ogni Pod dello StatefulSet. Per questo si può utilizzare i `volumeClaimTemplates`:
+
+```yaml
+apiVersion: v1
+kind: StatefulSet
+# ...
+template:
+    metadata:
+        labels:
+            app: mysql
+    spec:
+    containers:
+        - name: mysql
+        image: mysql
+        volumeMounts:
+        - mountPath: "/var/lib/mysql"
+            name: data-volume
+volumeClaimTemplates:
+  - metadata:
+      name: data-volume
+    spec:
+        accessModes:
+            - ReadWriteOnce
+        storageClassName: google-storage
+        resources:
+            requests:
+                storage: 500Mi
+
+```
+
+In questo modo, quando i Pod vengono creati, viene creato in automatico anche la PVC e il PV associati ad esso. Se il Pod viene ricreato, il volume __non__ viene cancellato, ed anzi ad ogni Pod dello StatefulSet viene associato sempre lo stesso volume, mantenendo quindi i dati replicati al suo interno.
+
 ## Services
 
 Permette di connettere i Pod tra di loro e con l'esterno.
@@ -623,6 +732,67 @@ spec:
     selector:
         app: myapp
         type: front-end
+```
+
+### Headless Service
+
+Un servizio headless non svolge alcun load balancing, ma semplicemente assegna un record DNS a tutti i Pod connessi al servizio. In questo modo, è possibile chiamare un Pod preciso in modo diretto, senza sapere il suo IP ne il record DNS del Pod (che è creato a partire dall'IP, ma con `-` al posto dei `.`, vedi [DNS in Kubernetes](NETWORKING.md#DNS-per-i-Pod)). La definizione di un servizio headless richiede di impostare `clusterIP: None`:
+
+```yaml
+# mysql-h.yaml
+apiVersion: v1
+kind: Service
+metadata:
+    name: mysql-h
+spec:
+    clusterIP: None # indica che il servizio è headless
+    ports:
+        port: 3306
+    selector:
+        app: mysql
+```
+
+Una volta creato il servizio headless, __in generale non vengono creati automaticamente i record DNS__ dei Pod. È necessario specificare nei Pod del due nuove proprietà, `subdomain` e `hostname`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+# ...
+template:
+    metadata:
+    name: myapp-pod
+    labels:
+        app: myapp
+        type: front-end
+    spec:
+        subdomain: mysql-h
+        hostname: mysql-pod
+        containers:
+        - name: nginx-container
+            image: nginx
+# ...
+```
+
+In questo caso, __tutte__ le repliche vengono create __con lo stesso hostname e subdomain__. Questo può andare bene nel caso di Deployment e ReplicaSet, ma __non nel caso dei StatefulSet__, dove i Pod devono avere ogniuno il suo record DNS.
+
+Nel caso di *StatefulSet*, __non devono essere specificati `hostname` e `subdomain__`. Invece, va specificata la proprietà `serviceName`, che indica il servizio headless che gestirà i record DNS. In questo modo, i record DNS vengono creati automaticamente e con `hostname` diversi, con il formato:
+
+```shell
+<nome-pod-stateful-set>.<nome-servizio-headless>.<namespace>.<tipo-oggetto>.<cluster>
+# esempio
+mysql-0.mysql-h.default.svc.cluster.local
+```
+
+```yaml
+# ...
+spec:
+    replicas: 3
+    selector: 
+        matchLabels:
+            type: mysql
+    serviceName: mysql-h # servizio headless
+    template:
+# ...
 ```
 
 ## Namespaces
