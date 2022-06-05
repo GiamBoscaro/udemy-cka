@@ -65,6 +65,81 @@ Per effettuare un rollout:
 kubectl rollout undo deployment/<nome-deployment>
 ```
 
+## Jobs
+
+Fin'ora, tutte le applicazioni deployate nel cluster sono state applicazioni che devono rimanere continuamente in esecuzione. Ci sono però dei *workloads* che una volta completato il loro compito possono essere rimossi (ad esempio: esecuzione di un calcolo, processamento di un immagine ecc.).
+In questi casi viene utilizzato un *Job*, che crea diversi Pod per completare il lavoro, ma a differenza del *ReplicaSet*, completato con successo il processo lascerà che i Pod si spengano senza provare a riavviarli.
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: math-add-job
+spec:
+  # quanti Pod vengono creati e devono completarsi con successo
+  # finche non si hanno n Pod completati con successo, il Job
+  # continua a crearne di nuovi
+  completions: 3
+  # quanti Pod possono essere creati in parallelo al massimo
+  parallelism: 3
+  template:
+    spec:
+      containers:
+        - name: math-add
+          image: ubuntu
+          command: ['expr', '3', '+', '2']
+      restartPolicy: Never
+```
+
+Per verificare i *Job* attivi:
+
+```shell
+kubectl get jobs
+```
+
+Per avere più dettagli, come ad esempio verificare quanti tentativi ci sono voluti per completare il lavoro:
+
+```shell
+kubectl describe job <nome-job>
+```
+
+I Pod che sono stati avviati tramite Job verranno visualizzati con lo stato di *Completed* quando il lavoro è completato. I Pod e il Job rimangono in memoria finchè il Job non viene cancellato manualmente:
+
+```shell
+kubectl delete job <nome-job> # cancella automaticamente anche i Pod associati
+```
+
+### Cron Jobs
+
+Un *Cron Job* è un *Job* programmato per essere eseguito periodicamente.
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: report-cron-job
+spec:
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      completions: 3
+      parallelism: 3
+      template:
+        containers:
+          - name: math-add
+            image: ubuntu
+            command: ['expr', '3', '+', '2']
+        restartPolicy: OnFailure
+```
+
+Per verificare i *CronJob* attivi nel cluster:
+
+```shell
+kubectl get cronjobs
+```
+
+*Nota*: I Cron Job si basano sulla timezone del `kube-controller-manager`.
+
 ## Comandi e Argomenti
 
 ### Comandi e Argomenti in Docker
