@@ -470,7 +470,7 @@ spec:
 
 Finchè il `readinessProbe` non darà una risposta positiva, il Servizio associato al Pod non inoltrerà alcuna richiesta ad esso. Questo è particolarmente importante in un deployment con più repliche. Se il deployment viene scalato e vengono aggiunte repliche in fase di avviamento, il servizio inizierà ad inviare chiamate ai nuovi Pod subito se nessun `readinessProbe` è impostato. Per cui alcuni utenti potrebbero avere problemi nell'utilizzo dell'applicazione.
 
-* *Nota*: se non viene impostato alcun `readinessProbe`, Kubernetes segnerà come Ready il Pod appena tutti i container al suo interno saranno in esecuzione.
+*Nota*: se non viene impostato alcun `readinessProbe`, Kubernetes segnerà come Ready il Pod appena tutti i container al suo interno saranno in esecuzione.
 
 Vi sono diversi modi per testare lo stato del Pod:
 
