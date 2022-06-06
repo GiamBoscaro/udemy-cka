@@ -689,6 +689,30 @@ roleRef:
 kubectl get clusterroles -A --no-headers | wc -l
 ```
 
+## Admission Controllers
+
+L'autenticazione RBAC permette di controllare le autorizzazioni a livello di API. È possibile sia necessario invece controllare con molto più dettaglio i permessi che un utente può avere, ad esempio a livello di definizione del manifest (non può modificare l'immagine, oppure le immagini devono provenire solo da un registro privato ecc.). Per controllare queste autorizzazioni si utilizzano gli *Admission Controllers*. Gli Admission Controller possono anche mutare le richieste o effettuare automaticamente operazioni nel cluster. Vi sono vari controller predefiniti all'interno di Kubernetes, come ad esempio:
+
+* `AlwaysPullImages`: obbliga a scaricare sempre le immagini.
+* `EventRateLimit`: limita le chiamate alle API di Kubernetes.
+* `NamespaceExists`: blocca tutte le richieste verso un namespace che non esiste (attivo di default).
+* `NamespaceAutoProvision`: crea automaticamente un namespace se non esiste (non è attivo di default).
+* `DefaultStorageClass`: aggiunge automaticamente la storage class a una PVC che non la specifica.
+
+Gli *Admission Controllers* verificano i permessi dopo aver passato Autenticazione e Autorizzazione (in questo caso RBAC).
+
+Per ottenere tutti gli Admission Controllers attivi di default:
+
+```shell
+kube-apiserver -h | grep enable-admission-plugins
+# se si utilizza kubeadm, kube-apiserver è un Pod, quindi:
+kubectl exec kube-apiserver-controlplane -n kube-system -- kube-apiserver -h | grep enable-admission-plugins
+```
+
+Per abilitare un plugin, aggiungerlo all'opzione `--enable-admission-plugins` di `kube-apiserver`, per disabilitarne uno attivo di default, inserirlo in `--disable-admission-plugins`.
+
+*Nota*: nelle ultime versioni di Kubernetes, `NamespaceExists` e `NamespaceAutoProvision` sono deprecati, e si utilizza `NamespaceLifecycle`, che assicura anche che i namespace *default*, *kube-public* e *kube-system* non possano essere cancellati. Inoltre, rifiuta sempre le richieste a namespace che non esistono.
+
 ## Account di Servizio
 
 I *Service Account* sono utenze utilizzati da bot o servizi che devono accedere in modo autonomo al cluster per leggere alcune informazioni (es: metriche, salute del cluster).
