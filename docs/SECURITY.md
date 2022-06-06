@@ -17,7 +17,7 @@ Quando si accedere al cluster, si accede al `kubeapi-server`. È possibile acced
 * Utente e Password
 * Utente e Token
 * Certificati
-* Provider esterni
+* Provider esterni (es: LDAP)
 * Account di servizio (per le macchine)
 
 Una volta autenticato, l'utente sarà autorizzato a effettuare solo certe operazioni. Le autorizzazioni possono essere fornite in vari modi:
@@ -56,7 +56,7 @@ Per indicare a `kubeapi-server` quale file utilizzare per l'autenticazione, usar
 
 ```shell
 # kube-apiserver.service
---basic-auth-file=user-details.cs
+--basic-auth-file=user-details.csv
 ```
 
 È necessario riavviare il servizio perchè le modifiche abbiano effetto. Se si utilizza `kubeadm`, è possibile inserire il comando sul manifest in `/etc/kubernetes/manifests/kube-apiserver.yaml` e il rispettivo Pod verrà ricreato automaticamente.
@@ -542,7 +542,7 @@ Le API di Kubernetes sono raggiungibili tramite `kubectl` ma anche tramite delle
 * `/api`: contiene le Core API, sono le API più vecchie con i servizi principali di Kubernetes.
 * `/apis`: contiene tutti gli altri gruppi di API. Sono più recenti. Ogni gruppo è diviso in Risorse e Verbi.
 
-![Gruppi e risorse delle namaed APIs](/assets/section-7/named_apis.PNG)
+![Gruppi e risorse delle named APIs](/assets/section-7/named_apis.PNG)
 
 Tutte le risorse (che verrano poi utilizzate per la definizione dei ruoli) sono elencabili con:
 
@@ -553,7 +553,7 @@ kubectl api-resources
 Se si prova ad accedere alle API che richiedono autenticazione verrà restituito un errore. Infatti deve essere precisato, ad ogni chiamata, la posizione dei certificati che si vogliono utilizzare per l'autenticazione.
 
 ```shell
-curl http://localhost:6443 -k
+curl https://localhost:6443 -k
     --key admin. key
     --cert admin.crt
     --cacert ca.crt
@@ -610,7 +610,7 @@ metadata:
 subjects:
   # SINGOLO UTENTE
 - kind: User
-  name: dev-user # is case sensitive
+  name: dev-user # case sensitive
   apiGroup: rbac.authorization.k8s.io
   # GRUPPI
 - kind: Group
