@@ -566,6 +566,54 @@ kubectl proxy # espone localhost:8001
 curl http://localhost:8001 -k # non è piu necessario indicare i certificati
 ```
 
+### Versioni API
+
+Vi sono diversi tipi di release e versioni delle API:
+
+* *Alpha*: API appena rilasciate, potrebbero avere bug e essere state testate poco. Devono essere attivate modificando la configurazione di Kubernetes. Potrebbero __non essere sviluppate ulteriormente__ e cancellate in futuro.
+* *Beta*: Potrebbero avere alcuni bug, ma sono state testate e hanno test automatici. Sono abilitate di default, e saranno inserite nella versione stabile dopo del tempo.
+* *GA/Stable*: sono testate, affidabili e vengono supportate per molte release.
+
+Gli oggetti in genere vengono creati con la versione più recente, ma in certi casi supportano più di una versione, e possono essere quindi creati con diverse `apiVersion`. Per verificare la versione preferita (*Preferred/Storage*) utilizzare `kubectl explain <nome-oggetto>` (es: `kubectl explain deployment` mostrerà la versione *preferred* per i Deployments).
+
+Per abilitare o disabilitare alcune API è necessario configurare e riavviare il `kube-apiserver`, modificando l'opzione `--runtime-config`:
+
+```shell
+ExecStart=/usr/local/bin/kube-apiserver \\
+  --runtime-config=batch/v2alpha1,rbac.authorization.k8s.io/v1alpha1 \\
+```
+
+Per verificare la versione preferita dell'API:
+
+```shell
+kubectl proxy 8001
+curl localhost:8001/apis/<nome-api>
+```
+
+### API Deprecate
+
+* Le API possono essere rimosse solo quando la versione API viene cambiata
+* Gli oggetti creati dall'API devono poter cambiare versione API senza perdita di informazioni. Questo significa che se viene modificata una proprietà del manifest nella versione successiva, questo proprietà dovrà essere inserit anche nelle versioni precedenti (anche se poi questa proprietà non va ad agire effettivamente nell'oggetto). In questo modo, il manifest sarà sempre uguale in tutte le versioni.
+* Le API devono mantenere il supporto per:
+  * *Stable*: 12 mesi o 3 release di Kubernetes. Le vecchie API devono essere segnate come deprecate.
+  * *Beta*: 9 mesi o 3 release di Kubernetes. Le vecchie API devono essere segnate come deprecate. È possibile inserire un API come *preferred/storage* solo dalla seconda release in cui vengono supportate entrambe le API (quella nuova e quella vecchia). Alla prima release, la vecchia API rimane quella preferita.
+  * *Alpha*: Nessun obbligo.
+* Una versione API non può essere deprecata se non esce almeno una versione successiva allo stesso livello di stabilità (es: se pubblico `v2alpha1`, non posso deprecare `v1` finchè non rilascio `v2`).
+
+Per convertire velocemente tutti i manifest ad una nuova versione dell'API, utilizzare:
+
+```shell
+kubectl convert -f <vecchio-manifest> --output-version <nuova-api>
+```
+
+*Nota*: il plugin `convert` non è incluso nell'installazione di `kubectl`, e va installato separatamente
+
+```shell
+curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl-convert
+chmod +x kubectl-convert
+mv kubectl-convert /usr/local/bin/kubectl-convert
+```
+
 ## Permessi e Autorizzazioni
 
 Dopo che un utente è stato autenticato, è necessario verificare quali permessi ha l'utente e su cosa può operare nel cluster. Vi sono diversi modi di autorizzare l'utente:
