@@ -65,6 +65,22 @@ Per effettuare un rollout:
 kubectl rollout undo deployment/<nome-deployment>
 ```
 
+### Strategia Green/Blue
+
+La strategia di deployment green/blue crea il nuovo deployment con un label diverso da quello precedente (es: `version: 2` al posto di `version: 1`). Quando il nuovo deployment è completo e funzionante, viene cambiato il selector del servizio che gestisce il deployment, e tutte le chiamate verranno quindi d'ora in poi inoltrate al nuovo deployment.
+
+### Strategia Canary
+
+La strategia canary crea un Pod con la nuova versione, a cui viene indirizzata solo una piccola parte del traffico. Questo permette agli sviluppatori di testare e far provare il nuovo aggiornamento. Quando si vuole pubblicare ufficialmente la nuova versione, basta eseguire un rollout del deployment e cancellare il *Pod Canary*.
+Per eseguire questa strategia, seguire i seguenti passaggi:
+
+* Creare il nuovo Deployment con la nuova versione dell'immagine.
+* Puntare il selector del Servizio ad un label che è __in comune__ tra il vecchio deployment e quello nuovo.
+* Tenere solo una replica del nuovo deployment, e tutte le repliche di quello vecchio.
+* Il Servizio invierà le richieste in modo casuale a tutti i Pod, ma essendoci solo un Pod con la nuova versione, solo una piccola percentuale delle richieste sarà inviata ad esso.
+
+*Nota*: È difficile controllare con precisione la percentuale del traffico inviato al nuovo Deployment, in quando dipende dal numero di Pod in esecuzione nel vecchio Deployment. Servirebbero centinaia di Pod per gestire correttamente il traffico. Per ovviare a questo problema si possono utilizzare le *Service Mesh* come [Istio](https://istio.io/latest/about/service-mesh/).
+
 ## Jobs
 
 Fin'ora, tutte le applicazioni deployate nel cluster sono state applicazioni che devono rimanere continuamente in esecuzione. Ci sono però dei *workloads* che una volta completato il loro compito possono essere rimossi (ad esempio: esecuzione di un calcolo, processamento di un immagine ecc.).
