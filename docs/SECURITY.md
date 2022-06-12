@@ -181,7 +181,7 @@ mentre i componenti "client" che richiedono il TLS sono:
 
 Oltre a questi certificati, vi sono anche i certificati della *Certificate Authority*. Kubernetes richiede almeno una CA, ma se ne possono anche avere più di una.
 
-![Componenti che richiedono certificati nel cluster](../assets/section-7/cluster_certs.PNG)
+![Componenti che richiedono certificati nel cluster](../assets/section-6/cluster_certs.PNG)
 
 *Nota*: Le public key hanno in genere l'estensione `crt` o `pem`, mentre le private key hanno l'estensione `key` oppure `-key.pem`.
 
@@ -334,7 +334,7 @@ Per avere i permessi corretti, il nodo deve essere dentro il gruppo `SYSTEM:NODE
 
 ### Vedere i Dettagli dei Certificati
 
-È importante tenere sotto controllo e organizzati tutti i certificati del cluster, magari su una tabella che contenga tutti i dettagli di ogni certificato (vedi [certs-checker.xlsx](/assets/section-7/kubernetes-certs-checker.xlsx)).
+È importante tenere sotto controllo e organizzati tutti i certificati del cluster, magari su una tabella che contenga tutti i dettagli di ogni certificato (vedi [certs-checker.xlsx](/assets/section-6/kubernetes-certs-checker.xlsx)).
 Per vedere i dettagli di un certificato nel cluster:
 
 ```shell
@@ -542,7 +542,7 @@ Le API di Kubernetes sono raggiungibili tramite `kubectl` ma anche tramite delle
 * `/api`: contiene le Core API, sono le API più vecchie con i servizi principali di Kubernetes.
 * `/apis`: contiene tutti gli altri gruppi di API. Sono più recenti. Ogni gruppo è diviso in Risorse e Verbi.
 
-![Gruppi e risorse delle named APIs](/assets/section-7/named_apis.PNG)
+![Gruppi e risorse delle named APIs](/assets/section-6/named_apis.PNG)
 
 Tutte le risorse (che verrano poi utilizzate per la definizione dei ruoli) sono elencabili con:
 
@@ -712,6 +712,76 @@ kubectl exec kube-apiserver-controlplane -n kube-system -- kube-apiserver -h | g
 Per abilitare un plugin, aggiungerlo all'opzione `--enable-admission-plugins` di `kube-apiserver`, per disabilitarne uno attivo di default, inserirlo in `--disable-admission-plugins`.
 
 *Nota*: nelle ultime versioni di Kubernetes, `NamespaceExists` e `NamespaceAutoProvision` sono deprecati, e si utilizza `NamespaceLifecycle`, che assicura anche che i namespace *default*, *kube-public* e *kube-system* non possano essere cancellati. Inoltre, rifiuta sempre le richieste a namespace che non esistono.
+
+Gli Admission Controller vengono suddivisi in due classi:
+
+* *Validating*: validano la richiesta. Se la richiesta è errata, la bloccano.
+* *Mutating*: modificano una richiesta.
+
+Può esserci poi una combinazione tra i due.
+
+### Admission Controller Personalizzato
+
+È possibile creare degli Admission Controller personalizzati. Per fare cioò, si utilizzano dei webhook. Il controller invia un oggetto `AdmissionReview` al server impostato per ricevere le chiamate. Il server deve verificare la chiamata e rispondere indicando se è valida o no.
+Il server può essere sviluppato in autonomia, oppure può essere utilizzato il [template ufficiale](https://github.com/kubernetes/kubernetes/blob/release-1.21/test/images/agnhost/webhook/main.go) scritto in Go.
+
+Il server deve:
+
+* Poter ricevere a una chiamata POST verso `/validate`.
+* Poter ricevere a una chiamata POST verso `/mutate`.
+* Inviare un JSON come risposta.
+
+La response dovrà contenere la proprietà `allowed`, che indica se la richiesta è valida o no:
+
+```json
+{
+  "response": {
+    "allowed": true,
+    "patch": "...", // base64
+    "patchType": "..."
+  }
+}
+```
+
+Nel caso di un Mutating Amission Controller, la risposta conterrà anche la proprietà `patch`, che indica quali modifiche vanno effettuate nella richiesta. Un esempio di patch che aggiunge lo username del richiedente ai metadata del manifesto:
+
+```json
+{ 
+  "patch": [
+    {
+      "op": "add",
+      "path": "/metadata/labels/users",
+      "value": "username",
+    }
+  ]
+}
+```
+
+Il server webhook può essere deployato sul cluster, assieme al suo servizio, oppure in un server esterno. Dopodichè il cluster va configurato per utilizzare questo webhook:
+
+```yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration # [ValidatingWebhookConfiguration, MutatingWebhookConfiguration]
+metadata:
+  name: "pod-policy.example.com"
+webhooks:
+- name: "pod-policy.example.com"
+  clientConfig:
+    # Server estermoo
+    url: https://my-webook-server.com/
+    # oppure Deployment interno
+    service:
+      namespace: "webhook-namespace"
+      name: "webhook-service"
+    caBundle: "......" # sono necessari i certificati TLS
+  # Quando il webhook viene chiamato
+  rules:
+  - apiGroups: [""]
+    apiVersions: ["v1"]
+    operations: ["CREATE"]
+    resources: ["pods"]
+    scope: "Namespaced"
+```
 
 ## Account di Servizio
 
