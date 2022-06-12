@@ -945,6 +945,50 @@ Al posto di un singolo file è anche possibile puntare ad un intera cartella per
 Per applicare correttamente i comandi necessari, Kubernetes confronta la nuova configurazione con quella in esecuzione, ed inoltre con un JSON rappresentante l'ultima configurazione applicata (utilizzata sopratutto per capire se qualche campo è stato cancellato dal file locale).
 L'ultima configurazione applicata è salvata direttamente sulla definizione dell'oggetto nella memoria del cluster, su un `annotations`, e viene creata solo utilizzando il comando `kubectl apply`.
 
+## Risorse Personalizzate
+
+Tutte gli oggetti visti fin'ora sono inclusi nell'installazione di Kubernetes. È possibile però creare risorse/oggetti personalizzati, tramite un *Custom Resource Definition*:
+
+```yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+    name: flighttickets.flights.com
+spec:
+    scope: Namespaced # indica se l'oggetto creato sarà namespaced o no
+    group: flights.com
+    names:
+        kind: FlightTicket
+        singular: flightticket
+        plural: flighttickets
+        shortnames:
+          - ft
+    versions:
+      - name: v1
+        served: true
+        storage: true
+    schema:
+        openAPIV3Schema:
+            # Open API 3 schema per tutte le proprietà che si possono inserire nell'oggetto
+```
+
+Una volta definita e creata la risorsa con `kubectl create -f <crd-file>`, sarà possibile utilizzarla nel cluster:
+
+```yaml
+apiVersion: flights.com/v1
+kind: FlightTicket
+# ...
+```
+
+L'oggetto creato verrà inserito nell'`etcd`, ma non farà nulla. Questo perchè manca ancora la definizione del Controller, che riceve monitora la risorsa ed effettua le operazioni e le chiamate API necessarie a svolgere il compito dell'oggetto (es: in questo caso, a prenotare effettivamente il biglietto aereo).
+Un controller è un codice che controlla continuamente lo stato del cluster ed in particolare certi tipi di risorse (`kind`). Quando il `kube-apiserver` richiede l'esecuzione di un certo comando per quella risorsa, è il Controller che dovrà rispondere effettuando le operazioni necessarie (es: `create` prenota il biglietto, `delete` annulla la prenotazione).
+I controller possono essere scritti in qualsiasi linguaggio di programmazione, ma Kubernetes offre [un template scritto in Go](https://github.com/kubernetes/sample-controller) per facilitare la creazione dei Controller.
+Il Controller può essere eseguito all'interno di un Pod nel cluster.
+
+### Operator Framework
+
+Gli operatori sono dei plugin di Kubernetes per gestire le risorse personalizzate e i suoi componenti. Il framework permette di automatizzare facilmente molte funzioni estendendo le API di Kubernetes.
+
 ## References
 
 1. [CKA Course - Core Concepts](https://github.com/kodekloudhub/certified-kubernetes-administrator-course/tree/master/docs/02-Core-Concepts)
